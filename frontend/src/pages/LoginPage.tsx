@@ -30,7 +30,7 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <Card className="w-full max-w-sm">
-        <h1 className="mb-1 text-xl font-semibold tracking-tight">MoneyControl</h1>
+        <h1 className="mb-1 text-xl font-semibold tracking-tight">Money Control</h1>
         <p className="mb-6 text-sm text-slate-500">Inicia sesión en tu cuenta</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
