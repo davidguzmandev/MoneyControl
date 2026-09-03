@@ -4,9 +4,35 @@ import { pool } from "../db";
 import { requireAuth } from "../middleware/requireAuth";
 import { newId } from "../lib/id";
 import { CategoryRow, mapCategory } from "../lib/mappers";
+import { getBudgetSummary } from "../services/budget";
 
 const router = Router();
 router.use(requireAuth);
+
+/**
+ * Category budgets are envelopes carved out of the income already logged
+ * for the current period, so their sum can never exceed it.
+ */
+async function assertBudgetWithinIncome(
+  userId: string,
+  newBudget: number,
+  excludeCategoryId?: string
+): Promise<string | null> {
+  const { incomeSoFar } = await getBudgetSummary(userId);
+
+  const existingSumResult = await pool.query<{ total: string | null }>(
+    `SELECT SUM(monthly_budget) as total FROM categories
+     WHERE user_id = $1 AND type = 'EXPENSE' AND monthly_budget IS NOT NULL
+     ${excludeCategoryId ? "AND id != $2" : ""}`,
+    excludeCategoryId ? [userId, excludeCategoryId] : [userId]
+  );
+  const existingSum = Number(existingSumResult.rows[0]?.total ?? 0);
+
+  if (existingSum + newBudget > incomeSoFar) {
+    return `Los presupuestos de categorías (${(existingSum + newBudget).toFixed(2)}) no pueden superar tu ingreso del periodo (${incomeSoFar.toFixed(2)})`;
+  }
+  return null;
+}
 
 router.get("/", async (req, res) => {
   const result = await pool.query<CategoryRow>(
@@ -40,6 +66,14 @@ router.post("/", async (req, res) => {
   if (existing.rows.length > 0) {
     res.status(409).json({ error: "Ya existe una categoría con ese nombre" });
     return;
+  }
+
+  if (parsed.data.type === "EXPENSE" && parsed.data.monthlyBudget) {
+    const budgetError = await assertBudgetWithinIncome(req.userId!, parsed.data.monthlyBudget);
+    if (budgetError) {
+      res.status(400).json({ error: budgetError });
+      return;
+    }
   }
 
   const result = await pool.query<CategoryRow>(
@@ -79,6 +113,18 @@ router.patch("/:id", async (req, res) => {
   if (!parsed.success) {
     res.status(400).json({ error: "Datos inválidos" });
     return;
+  }
+
+  if (existing.rows[0].type === "EXPENSE" && parsed.data.monthlyBudget) {
+    const budgetError = await assertBudgetWithinIncome(
+      req.userId!,
+      parsed.data.monthlyBudget,
+      req.params.id
+    );
+    if (budgetError) {
+      res.status(400).json({ error: budgetError });
+      return;
+    }
   }
 
   const fields: string[] = [];

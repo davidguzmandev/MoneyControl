@@ -74,8 +74,6 @@ export function CategoriesPage() {
     mutationFn: ({ id, monthlyBudget }: { id: string; monthlyBudget: number | null }) =>
       api.patch<{ category: Category }>(`/categories/${id}`, { monthlyBudget }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["categories"] }),
-    onError: (err) =>
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar el presupuesto de la categoría"),
   });
 
   function handleSubmit(e: FormEvent) {
@@ -199,10 +197,9 @@ export function CategoriesPage() {
                   setError(null);
                   deleteMutation.mutate(category.id);
                 }}
-                onSaveBudget={(monthlyBudget) => {
-                  setError(null);
-                  budgetMutation.mutate({ id: category.id, monthlyBudget });
-                }}
+                onSaveBudget={(monthlyBudget) =>
+                  budgetMutation.mutateAsync({ id: category.id, monthlyBudget })
+                }
               />
             ))}
             {expenseCategories.length === 0 && (
@@ -226,20 +223,27 @@ function ExpenseCategoryRow({
   spent: number;
   currency: Currency;
   onDelete: () => void;
-  onSaveBudget: (monthlyBudget: number | null) => void;
+  onSaveBudget: (monthlyBudget: number | null) => Promise<unknown>;
 }) {
   const [budgetInput, setBudgetInput] = useState(category.monthlyBudget !== null ? String(category.monthlyBudget) : "");
+  const [budgetError, setBudgetError] = useState<string | null>(null);
 
   useEffect(() => {
     setBudgetInput(category.monthlyBudget !== null ? String(category.monthlyBudget) : "");
   }, [category.monthlyBudget]);
 
-  function commitBudget() {
+  async function commitBudget() {
     const trimmed = budgetInput.trim();
     const parsed = trimmed === "" ? null : Number(trimmed);
     if (parsed === category.monthlyBudget) return;
     if (parsed !== null && (Number.isNaN(parsed) || parsed < 0)) return;
-    onSaveBudget(parsed);
+    setBudgetError(null);
+    try {
+      await onSaveBudget(parsed);
+    } catch (err) {
+      setBudgetError(err instanceof ApiError ? err.message : "No se pudo guardar el presupuesto");
+      setBudgetInput(category.monthlyBudget !== null ? String(category.monthlyBudget) : "");
+    }
   }
 
   const hasBudget = category.monthlyBudget !== null && category.monthlyBudget > 0;
@@ -283,6 +287,7 @@ function ExpenseCategoryRow({
           />
         </div>
       )}
+      {budgetError && <p className="mt-1 pl-6 text-xs text-red-600">{budgetError}</p>}
     </li>
   );
 }

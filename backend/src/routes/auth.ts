@@ -113,7 +113,6 @@ router.get("/me", requireAuth, async (req, res) => {
 const settingsSchema = z.object({
   name: z.string().min(1).max(80).optional(),
   cycleStartDay: z.number().int().min(1).max(28).optional(),
-  monthlyBudget: z.number().min(0).optional(),
   currency: z.enum(["USD", "COP", "MXN"]).optional(),
 });
 
@@ -135,10 +134,6 @@ router.patch("/me", requireAuth, async (req, res) => {
   if (parsed.data.cycleStartDay !== undefined) {
     fields.push(`cycle_start_day = $${idx++}`);
     values.push(parsed.data.cycleStartDay);
-  }
-  if (parsed.data.monthlyBudget !== undefined) {
-    fields.push(`monthly_budget = $${idx++}`);
-    values.push(parsed.data.monthlyBudget);
   }
   if (parsed.data.currency !== undefined) {
     fields.push(`currency = $${idx++}`);

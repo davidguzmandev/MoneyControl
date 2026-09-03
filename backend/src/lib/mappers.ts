@@ -36,7 +36,6 @@ export function publicUser(row: UserRow) {
     email: row.email,
     name: row.name,
     cycleStartDay: row.cycle_start_day,
-    monthlyBudget: Number(row.monthly_budget),
     currency: row.currency,
   };
 }

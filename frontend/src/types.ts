@@ -6,7 +6,6 @@ export interface User {
   email: string;
   name: string;
   cycleStartDay: number;
-  monthlyBudget: number;
   currency: Currency;
 }
 

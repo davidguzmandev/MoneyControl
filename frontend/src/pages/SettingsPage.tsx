@@ -21,7 +21,6 @@ export function SettingsPage() {
   const [name, setName] = useState(user?.name ?? "");
   const [cycleStartDay, setCycleStartDay] = useState(user?.cycleStartDay ?? 1);
   const [customDay, setCustomDay] = useState(!PRESETS.some((p) => p.day === user?.cycleStartDay));
-  const [monthlyBudget, setMonthlyBudget] = useState(String(user?.monthlyBudget ?? 0));
   const [currency, setCurrency] = useState<Currency>(user?.currency ?? "USD");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -32,7 +31,6 @@ export function SettingsPage() {
     setName(user.name);
     setCycleStartDay(user.cycleStartDay);
     setCustomDay(!PRESETS.some((p) => p.day === user.cycleStartDay));
-    setMonthlyBudget(String(user.monthlyBudget));
     setCurrency(user.currency);
   }, [user]);
 
@@ -45,7 +43,6 @@ export function SettingsPage() {
       await updateSettings({
         name,
         cycleStartDay,
-        monthlyBudget: Number(monthlyBudget),
         currency,
       });
       setSuccess(true);
@@ -60,7 +57,7 @@ export function SettingsPage() {
     <div className="max-w-xl space-y-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Configuración</h1>
-        <p className="text-sm text-slate-500">Ajusta tu perfil, periodo de mes y presupuesto.</p>
+        <p className="text-sm text-slate-500">Ajusta tu perfil, periodo de mes y moneda.</p>
       </div>
 
       <Card>
@@ -108,18 +105,6 @@ export function SettingsPage() {
           </div>
 
           <div>
-            <Label htmlFor="monthlyBudget">Presupuesto mensual</Label>
-            <Input
-              id="monthlyBudget"
-              type="number"
-              min={0}
-              step="0.01"
-              value={monthlyBudget}
-              onChange={(e) => setMonthlyBudget(e.target.value)}
-            />
-          </div>
-
-          <div>
             <Label htmlFor="currency">Moneda</Label>
             <Select id="currency" value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}>
               {CURRENCIES.map((c) => (
@@ -128,6 +113,12 @@ export function SettingsPage() {
                 </option>
               ))}
             </Select>
+          </div>
+
+          <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-800">
+            Tu presupuesto no se configura por separado: es la suma de los ingresos que registres en cada
+            periodo. Desde <span className="font-medium">Categorías</span> puedes repartir ese ingreso
+            asignando un presupuesto a cada categoría de gasto.
           </div>
 
           <ErrorText>{error}</ErrorText>
