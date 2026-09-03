@@ -64,6 +64,7 @@ jobs:
             export PATH=$NODE_BIN:\$PATH
             cd $REMOTE_PATH/backend
             npm ci --omit=dev
+            npm run migrate
             pm2 startOrReload ecosystem.config.js --update-env
             pm2 save
           "

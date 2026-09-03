@@ -1,14 +1,33 @@
+import "express-async-errors";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { config } from "./config";
+import authRoutes from "./routes/auth";
+import categoriesRoutes from "./routes/categories";
+import transactionsRoutes from "./routes/transactions";
+import budgetRoutes from "./routes/budget";
+import statsRoutes from "./routes/stats";
 
 const app = express();
 
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json());
+app.use(cookieParser());
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok" });
+});
+
+app.use("/api/auth", authRoutes);
+app.use("/api/categories", categoriesRoutes);
+app.use("/api/transactions", transactionsRoutes);
+app.use("/api/budget", budgetRoutes);
+app.use("/api/stats", statsRoutes);
+
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(err);
+  res.status(500).json({ error: "Error interno del servidor" });
 });
 
 app.listen(config.port, () => {
