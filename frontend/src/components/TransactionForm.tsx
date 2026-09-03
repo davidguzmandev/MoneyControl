@@ -27,13 +27,17 @@ export function TransactionForm({
 }) {
   const [type, setType] = useState<TransactionType>(initial?.type ?? "EXPENSE");
   const [amount, setAmount] = useState(initial?.amount !== undefined ? String(initial.amount) : "");
-  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? categories[0]?.id ?? "");
+  const [categoryId, setCategoryId] = useState(initial?.categoryId ?? "");
+
+  const filteredCategories = categories.filter((c) => c.type === type);
 
   useEffect(() => {
-    if (!categoryId && categories.length > 0) {
-      setCategoryId(categories[0].id);
+    const stillValid = filteredCategories.some((c) => c.id === categoryId);
+    if (!stillValid) {
+      setCategoryId(filteredCategories[0]?.id ?? "");
     }
-  }, [categories, categoryId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [type, categories]);
   const [description, setDescription] = useState(initial?.description ?? "");
   const [date, setDate] = useState(initial?.date?.slice(0, 10) ?? todayISODate());
   const [error, setError] = useState<string | null>(null);
@@ -105,8 +109,12 @@ export function TransactionForm({
       <div>
         <Label htmlFor="categoryId">Categoría</Label>
         <Select id="categoryId" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
-          {categories.length === 0 && <option value="">Cargando categorías...</option>}
-          {categories.map((c) => (
+          {filteredCategories.length === 0 && (
+            <option value="">
+              {categories.length === 0 ? "Cargando categorías..." : "No tienes categorías de este tipo"}
+            </option>
+          )}
+          {filteredCategories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
@@ -132,7 +140,7 @@ export function TransactionForm({
             Cancelar
           </Button>
         )}
-        <Button type="submit" disabled={loading || categories.length === 0}>
+        <Button type="submit" disabled={loading || filteredCategories.length === 0}>
           {loading ? "Guardando..." : submitLabel}
         </Button>
       </div>

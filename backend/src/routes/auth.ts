@@ -58,8 +58,8 @@ router.post("/register", async (req, res) => {
     userRow = result.rows[0];
     for (const cat of DEFAULT_CATEGORIES) {
       await client.query(
-        `INSERT INTO categories (id, user_id, name, color) VALUES ($1, $2, $3, $4)`,
-        [newId(), userId, cat.name, cat.color]
+        `INSERT INTO categories (id, user_id, name, color, type) VALUES ($1, $2, $3, $4, $5)`,
+        [newId(), userId, cat.name, cat.color, cat.type]
       );
     }
     await client.query("COMMIT");

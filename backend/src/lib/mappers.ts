@@ -13,6 +13,7 @@ export interface CategoryRow {
   user_id: string;
   name: string;
   color: string;
+  type: "INCOME" | "EXPENSE";
   created_at: Date;
 }
 
@@ -43,6 +44,7 @@ export function mapCategory(row: CategoryRow) {
     userId: row.user_id,
     name: row.name,
     color: row.color,
+    type: row.type,
     createdAt: row.created_at,
   };
 }

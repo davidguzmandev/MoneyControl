@@ -22,6 +22,7 @@ const createSchema = z.object({
     .string()
     .regex(/^#[0-9a-fA-F]{6}$/)
     .default("#64748b"),
+  type: z.enum(["INCOME", "EXPENSE"]),
 });
 
 router.post("/", async (req, res) => {
@@ -41,8 +42,8 @@ router.post("/", async (req, res) => {
   }
 
   const result = await pool.query<CategoryRow>(
-    `INSERT INTO categories (id, user_id, name, color) VALUES ($1, $2, $3, $4) RETURNING *`,
-    [newId(), req.userId, parsed.data.name, parsed.data.color]
+    `INSERT INTO categories (id, user_id, name, color, type) VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+    [newId(), req.userId, parsed.data.name, parsed.data.color, parsed.data.type]
   );
   res.status(201).json({ category: mapCategory(result.rows[0]) });
 });

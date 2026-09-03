@@ -13,6 +13,7 @@ export interface Category {
   userId: string;
   name: string;
   color: string;
+  type: TransactionType;
   createdAt: string;
 }
 
