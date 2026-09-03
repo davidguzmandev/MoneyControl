@@ -7,10 +7,14 @@ import { Button, Card } from "../components/ui";
 import { Modal } from "../components/Modal";
 import { TransactionForm } from "../components/TransactionForm";
 import type { TransactionFormValues } from "../components/TransactionForm";
+import { useAuth } from "../context/AuthContext";
 
 export function DashboardPage() {
+  const { user } = useAuth();
+  const currency = user?.currency ?? "USD";
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Transaction | null>(null);
 
   const { data: budget } = useQuery({
     queryKey: ["budget", "summary"],
@@ -33,6 +37,23 @@ export function DashboardPage() {
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["budget"] });
       setModalOpen(false);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (values: TransactionFormValues) => api.patch(`/transactions/${editing!.id}`, values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["budget"] });
+      setEditing(null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/transactions/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["budget"] });
     },
   });
 
@@ -59,7 +80,7 @@ export function DashboardPage() {
       <Card className="text-center">
         <p className="text-sm text-slate-500">Puedes gastar hoy</p>
         <p className={`my-2 text-4xl font-semibold tracking-tight ${overBudget ? "text-expense" : ""}`}>
-          {formatMoney(remainingToday)}
+          {formatMoney(remainingToday, currency)}
         </p>
         <div className="mx-auto h-2 w-full max-w-sm overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
           <div
@@ -68,22 +89,26 @@ export function DashboardPage() {
           />
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          Gastado hoy {formatMoney(spentToday)} de {formatMoney(todayAllowance)} asignados
+          Gastado hoy {formatMoney(spentToday, currency)} de {formatMoney(todayAllowance, currency)} asignados
         </p>
       </Card>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <p className="text-xs text-slate-500">Presupuesto mensual</p>
-          <p className="mt-1 text-lg font-semibold">{formatMoney(budget?.monthlyBudget ?? 0)}</p>
+          <p className="mt-1 text-lg font-semibold">{formatMoney(budget?.monthlyBudget ?? 0, currency)}</p>
         </Card>
         <Card>
           <p className="text-xs text-slate-500">Gastado en el periodo</p>
-          <p className="mt-1 text-lg font-semibold text-expense">{formatMoney(budget?.spentSoFar ?? 0)}</p>
+          <p className="mt-1 text-lg font-semibold text-expense">
+            {formatMoney(budget?.spentSoFar ?? 0, currency)}
+          </p>
         </Card>
         <Card>
           <p className="text-xs text-slate-500">Restante del mes</p>
-          <p className="mt-1 text-lg font-semibold text-income">{formatMoney(budget?.remainingMonthly ?? 0)}</p>
+          <p className="mt-1 text-lg font-semibold text-income">
+            {formatMoney(budget?.remainingMonthly ?? 0, currency)}
+          </p>
         </Card>
       </div>
 
@@ -99,10 +124,24 @@ export function DashboardPage() {
                   <p className="text-xs text-slate-400">{formatDate(t.date.slice(0, 10))}</p>
                 </div>
               </div>
-              <span className={`text-sm font-semibold ${t.type === "INCOME" ? "text-income" : "text-expense"}`}>
-                {t.type === "INCOME" ? "+" : "-"}
-                {formatMoney(t.amount)}
-              </span>
+              <div className="flex items-center gap-3">
+                <span className={`text-sm font-semibold ${t.type === "INCOME" ? "text-income" : "text-expense"}`}>
+                  {t.type === "INCOME" ? "+" : "-"}
+                  {formatMoney(t.amount, currency)}
+                </span>
+                <button
+                  onClick={() => setEditing(t)}
+                  className="text-xs text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
+                >
+                  Editar
+                </button>
+                <button
+                  onClick={() => deleteMutation.mutate(t.id)}
+                  className="text-xs text-slate-400 transition hover:text-red-600"
+                >
+                  Eliminar
+                </button>
+              </div>
             </li>
           ))}
           {transactions?.length === 0 && (
@@ -119,6 +158,20 @@ export function DashboardPage() {
           }}
           onCancel={() => setModalOpen(false)}
         />
+      </Modal>
+
+      <Modal open={!!editing} onClose={() => setEditing(null)} title="Editar movimiento">
+        {editing && (
+          <TransactionForm
+            categories={categories ?? []}
+            initial={editing}
+            submitLabel="Guardar cambios"
+            onSubmit={async (values) => {
+              await updateMutation.mutateAsync(values);
+            }}
+            onCancel={() => setEditing(null)}
+          />
+        )}
       </Modal>
     </div>
   );

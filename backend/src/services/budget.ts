@@ -6,6 +6,7 @@ export interface DailyBreakdownEntry {
   date: string;
   allowance: number;
   spent: number;
+  earned: number;
   leftover: number;
 }
 
@@ -16,6 +17,7 @@ export interface BudgetSummary {
   monthlyBudget: number;
   dailyBase: number;
   spentSoFar: number;
+  incomeSoFar: number;
   remainingMonthly: number;
   todayAllowance: number;
   spentToday: number;
@@ -32,6 +34,8 @@ interface UserBudgetRow {
  * Computes the rolling daily spending allowance for the period containing
  * `referenceDate`. Each day's allowance is the flat daily share of the
  * monthly budget plus whatever was left over (or overspent) the day before.
+ * Income logged on a given day adds directly to that day's leftover, so it
+ * also rolls forward like an underspend would.
  */
 export async function getBudgetSummary(
   userId: string,
@@ -50,15 +54,17 @@ export async function getBudgetSummary(
   const today = utcMidnight(referenceDate);
   const clampedToday = today.getTime() > period.end.getTime() ? period.end : today;
 
-  const expensesResult = await pool.query<{ amount: string; date: string }>(
-    `SELECT amount, date FROM transactions
-     WHERE user_id = $1 AND type = 'EXPENSE' AND date >= $2 AND date <= $3`,
+  const txResult = await pool.query<{ amount: string; date: string; type: "INCOME" | "EXPENSE" }>(
+    `SELECT amount, date, type FROM transactions
+     WHERE user_id = $1 AND date >= $2 AND date <= $3`,
     [userId, formatUTCDate(period.start), formatUTCDate(clampedToday)]
   );
 
   const spentByDay = new Map<string, number>();
-  for (const tx of expensesResult.rows) {
-    spentByDay.set(tx.date, (spentByDay.get(tx.date) ?? 0) + Number(tx.amount));
+  const earnedByDay = new Map<string, number>();
+  for (const tx of txResult.rows) {
+    const map = tx.type === "EXPENSE" ? spentByDay : earnedByDay;
+    map.set(tx.date, (map.get(tx.date) ?? 0) + Number(tx.amount));
   }
 
   const numDaysElapsed = diffUTCDays(clampedToday, period.start) + 1;
@@ -68,14 +74,16 @@ export async function getBudgetSummary(
     const day = addUTCDays(period.start, i);
     const key = formatUTCDate(day);
     const spent = spentByDay.get(key) ?? 0;
+    const earned = earnedByDay.get(key) ?? 0;
     const allowance = dailyBase + carry;
-    const leftover = allowance - spent;
-    dailyBreakdown.push({ date: key, allowance, spent, leftover });
+    const leftover = allowance - spent + earned;
+    dailyBreakdown.push({ date: key, allowance, spent, earned, leftover });
     carry = leftover;
   }
 
   const todayEntry = dailyBreakdown[dailyBreakdown.length - 1];
   const spentSoFar = dailyBreakdown.reduce((sum, d) => sum + d.spent, 0);
+  const incomeSoFar = dailyBreakdown.reduce((sum, d) => sum + d.earned, 0);
 
   return {
     periodStart: formatUTCDate(period.start),
@@ -84,7 +92,8 @@ export async function getBudgetSummary(
     monthlyBudget,
     dailyBase,
     spentSoFar,
-    remainingMonthly: monthlyBudget - spentSoFar,
+    incomeSoFar,
+    remainingMonthly: monthlyBudget + incomeSoFar - spentSoFar,
     todayAllowance: todayEntry?.allowance ?? dailyBase,
     spentToday: todayEntry?.spent ?? 0,
     remainingToday: todayEntry?.leftover ?? dailyBase,

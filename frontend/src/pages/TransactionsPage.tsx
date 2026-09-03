@@ -7,8 +7,11 @@ import { Button, Card, Select } from "../components/ui";
 import { Modal } from "../components/Modal";
 import { TransactionForm } from "../components/TransactionForm";
 import type { TransactionFormValues } from "../components/TransactionForm";
+import { useAuth } from "../context/AuthContext";
 
 export function TransactionsPage() {
+  const { user } = useAuth();
+  const currency = user?.currency ?? "USD";
   const queryClient = useQueryClient();
   const [categoryFilter, setCategoryFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -90,7 +93,7 @@ export function TransactionsPage() {
         <span className="ml-auto text-sm text-slate-500">
           Balance del filtro:{" "}
           <span className={total >= 0 ? "font-semibold text-income" : "font-semibold text-expense"}>
-            {formatMoney(total)}
+            {formatMoney(total, currency)}
           </span>
         </span>
       </Card>
@@ -112,7 +115,7 @@ export function TransactionsPage() {
               <div className="flex items-center gap-3">
                 <span className={`text-sm font-semibold ${t.type === "INCOME" ? "text-income" : "text-expense"}`}>
                   {t.type === "INCOME" ? "+" : "-"}
-                  {formatMoney(t.amount)}
+                  {formatMoney(t.amount, currency)}
                 </span>
                 <button
                   onClick={() => setEditing(t)}

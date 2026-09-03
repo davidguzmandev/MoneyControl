@@ -14,13 +14,71 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../lib/api";
-import type { BudgetSummary, CategoryStat, TimelinePoint } from "../types";
+import type { BudgetSummary, CategoryStat, Currency, TimelinePoint } from "../types";
 import { formatDate, formatMoney } from "../lib/format";
 import { Card } from "../components/ui";
+import { useAuth } from "../context/AuthContext";
 
 type RangeOption = "period" | "30" | "90" | "all";
 
+function CategoryPieCard({
+  title,
+  data,
+  emptyLabel,
+  currency,
+}: {
+  title: string;
+  data: CategoryStat[] | undefined;
+  emptyLabel: string;
+  currency: Currency;
+}) {
+  const total = data?.reduce((sum, c) => sum + c.total, 0) ?? 0;
+
+  return (
+    <Card>
+      <h2 className="mb-3 text-sm font-semibold text-slate-500">{title}</h2>
+      {data && data.length > 0 ? (
+        <div className="flex flex-col items-center gap-4 sm:flex-row">
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={data} dataKey="total" nameKey="name" innerRadius={55} outerRadius={90} isAnimationActive={false}>
+                {data.map((c) => (
+                  <Cell key={c.categoryId} fill={c.color} />
+                ))}
+              </Pie>
+              <Tooltip formatter={(value) => formatMoney(Number(value), currency)} />
+            </PieChart>
+          </ResponsiveContainer>
+          <ul className="w-full space-y-1.5 text-sm">
+            {data
+              .slice()
+              .sort((a, b) => b.total - a.total)
+              .map((c) => (
+                <li key={c.categoryId} className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
+                    {c.name}
+                  </span>
+                  <span className="text-slate-500">
+                    {formatMoney(c.total, currency)}{" "}
+                    <span className="text-xs text-slate-400">
+                      ({total ? Math.round((c.total / total) * 100) : 0}%)
+                    </span>
+                  </span>
+                </li>
+              ))}
+          </ul>
+        </div>
+      ) : (
+        <p className="py-10 text-center text-sm text-slate-400">{emptyLabel}</p>
+      )}
+    </Card>
+  );
+}
+
 export function StatsPage() {
+  const { user } = useAuth();
+  const currency = user?.currency ?? "USD";
   const [range, setRange] = useState<RangeOption>("period");
 
   const { data: budget } = useQuery({
@@ -40,23 +98,36 @@ export function StatsPage() {
     return { from: undefined, to: undefined };
   }, [range, budget]);
 
-  const params = new URLSearchParams();
-  if (from) params.set("from", from);
-  if (to) params.set("to", to);
+  const rangeParams = new URLSearchParams();
+  if (from) rangeParams.set("from", from);
+  if (to) rangeParams.set("to", to);
 
-  const { data: byCategory } = useQuery({
-    queryKey: ["stats", "by-category", from, to],
+  const expenseParams = new URLSearchParams(rangeParams);
+  expenseParams.set("type", "EXPENSE");
+  const incomeParams = new URLSearchParams(rangeParams);
+  incomeParams.set("type", "INCOME");
+
+  const { data: expenseByCategory } = useQuery({
+    queryKey: ["stats", "by-category", "EXPENSE", from, to],
     queryFn: () =>
-      api.get<{ categories: CategoryStat[] }>(`/stats/by-category?${params.toString()}`).then((r) => r.categories),
+      api
+        .get<{ categories: CategoryStat[] }>(`/stats/by-category?${expenseParams.toString()}`)
+        .then((r) => r.categories),
+  });
+
+  const { data: incomeByCategory } = useQuery({
+    queryKey: ["stats", "by-category", "INCOME", from, to],
+    queryFn: () =>
+      api
+        .get<{ categories: CategoryStat[] }>(`/stats/by-category?${incomeParams.toString()}`)
+        .then((r) => r.categories),
   });
 
   const { data: timeline } = useQuery({
     queryKey: ["stats", "timeline", from, to],
     queryFn: () =>
-      api.get<{ timeline: TimelinePoint[] }>(`/stats/timeline?${params.toString()}`).then((r) => r.timeline),
+      api.get<{ timeline: TimelinePoint[] }>(`/stats/timeline?${rangeParams.toString()}`).then((r) => r.timeline),
   });
-
-  const totalExpense = byCategory?.reduce((sum, c) => sum + c.total, 0) ?? 0;
 
   return (
     <div className="space-y-6">
@@ -90,74 +161,41 @@ export function StatsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <h2 className="mb-3 text-sm font-semibold text-slate-500">Gastos por categoría</h2>
-          {byCategory && byCategory.length > 0 ? (
-            <div className="flex flex-col items-center gap-4 sm:flex-row">
-              <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
-                  <Pie
-                    data={byCategory}
-                    dataKey="total"
-                    nameKey="name"
-                    innerRadius={55}
-                    outerRadius={90}
-                    isAnimationActive={false}
-                  >
-                    {byCategory.map((c) => (
-                      <Cell key={c.categoryId} fill={c.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(value) => formatMoney(Number(value))} />
-                </PieChart>
-              </ResponsiveContainer>
-              <ul className="w-full space-y-1.5 text-sm">
-                {byCategory
-                  .slice()
-                  .sort((a, b) => b.total - a.total)
-                  .map((c) => (
-                    <li key={c.categoryId} className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-2">
-                        <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-                        {c.name}
-                      </span>
-                      <span className="text-slate-500">
-                        {formatMoney(c.total)}{" "}
-                        <span className="text-xs text-slate-400">
-                          ({totalExpense ? Math.round((c.total / totalExpense) * 100) : 0}%)
-                        </span>
-                      </span>
-                    </li>
-                  ))}
-              </ul>
-            </div>
-          ) : (
-            <p className="py-10 text-center text-sm text-slate-400">No hay gastos en este rango.</p>
-          )}
-        </Card>
-
-        <Card>
-          <h2 className="mb-3 text-sm font-semibold text-slate-500">Ingresos vs. gastos por día</h2>
-          {timeline && timeline.length > 0 ? (
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={timeline}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
-                <XAxis dataKey="date" tickFormatter={(d) => formatDate(d)} fontSize={11} />
-                <YAxis fontSize={11} />
-                <Tooltip
-                  labelFormatter={(d) => formatDate(String(d))}
-                  formatter={(v) => formatMoney(Number(v))}
-                />
-                <Legend />
-                <Bar dataKey="income" name="Ingresos" fill="#16a34a" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="expense" name="Gastos" fill="#dc2626" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <p className="py-10 text-center text-sm text-slate-400">No hay movimientos en este rango.</p>
-          )}
-        </Card>
+        <CategoryPieCard
+          title="Ingresos por categoría"
+          data={incomeByCategory}
+          emptyLabel="No hay ingresos en este rango."
+          currency={currency}
+        />
+        <CategoryPieCard
+          title="Gastos por categoría"
+          data={expenseByCategory}
+          emptyLabel="No hay gastos en este rango."
+          currency={currency}
+        />
       </div>
+
+      <Card>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500">Ingresos vs. gastos por día</h2>
+        {timeline && timeline.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart data={timeline}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
+              <XAxis dataKey="date" tickFormatter={(d) => formatDate(d)} fontSize={11} />
+              <YAxis fontSize={11} />
+              <Tooltip
+                labelFormatter={(d) => formatDate(String(d))}
+                formatter={(v) => formatMoney(Number(v), currency)}
+              />
+              <Legend />
+              <Bar dataKey="income" name="Ingresos" fill="#16a34a" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expense" name="Gastos" fill="#dc2626" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <p className="py-10 text-center text-sm text-slate-400">No hay movimientos en este rango.</p>
+        )}
+      </Card>
     </div>
   );
 }

@@ -10,7 +10,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
-  updateSettings: (data: Partial<Pick<User, "name" | "cycleStartDay" | "monthlyBudget">>) => Promise<void>;
+  updateSettings: (data: Partial<Pick<User, "name" | "cycleStartDay" | "monthlyBudget" | "currency">>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -51,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   const settingsMutation = useMutation({
-    mutationFn: (data: Partial<Pick<User, "name" | "cycleStartDay" | "monthlyBudget">>) =>
+    mutationFn: (data: Partial<Pick<User, "name" | "cycleStartDay" | "monthlyBudget" | "currency">>) =>
       api.patch<{ user: User }>("/auth/me", data),
     onSuccess: ({ user }) => queryClient.setQueryData(["me"], user),
   });

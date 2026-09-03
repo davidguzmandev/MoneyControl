@@ -1,4 +1,5 @@
 export type TransactionType = "INCOME" | "EXPENSE";
+export type Currency = "USD" | "COP" | "MXN";
 
 export interface User {
   id: string;
@@ -6,6 +7,7 @@ export interface User {
   name: string;
   cycleStartDay: number;
   monthlyBudget: number;
+  currency: Currency;
 }
 
 export interface Category {
@@ -14,6 +16,7 @@ export interface Category {
   name: string;
   color: string;
   type: TransactionType;
+  monthlyBudget: number | null;
   createdAt: string;
 }
 
@@ -33,6 +36,7 @@ export interface DailyBreakdownEntry {
   date: string;
   allowance: number;
   spent: number;
+  earned: number;
   leftover: number;
 }
 
@@ -43,6 +47,7 @@ export interface BudgetSummary {
   monthlyBudget: number;
   dailyBase: number;
   spentSoFar: number;
+  incomeSoFar: number;
   remainingMonthly: number;
   todayAllowance: number;
   spentToday: number;

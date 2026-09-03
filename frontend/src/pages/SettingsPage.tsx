@@ -2,11 +2,18 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useAuth } from "../context/AuthContext";
 import { ApiError } from "../lib/api";
-import { Button, Card, ErrorText, Input, Label } from "../components/ui";
+import type { Currency } from "../types";
+import { Button, Card, ErrorText, Input, Label, Select } from "../components/ui";
 
 const PRESETS = [
   { day: 1, label: "Del 1 al último día del mes" },
   { day: 15, label: "Del 15 al 14 del mes siguiente" },
+];
+
+const CURRENCIES: { value: Currency; label: string }[] = [
+  { value: "USD", label: "USD — Dólar estadounidense" },
+  { value: "COP", label: "COP — Peso colombiano" },
+  { value: "MXN", label: "MXN — Peso mexicano" },
 ];
 
 export function SettingsPage() {
@@ -15,6 +22,7 @@ export function SettingsPage() {
   const [cycleStartDay, setCycleStartDay] = useState(user?.cycleStartDay ?? 1);
   const [customDay, setCustomDay] = useState(!PRESETS.some((p) => p.day === user?.cycleStartDay));
   const [monthlyBudget, setMonthlyBudget] = useState(String(user?.monthlyBudget ?? 0));
+  const [currency, setCurrency] = useState<Currency>(user?.currency ?? "USD");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -25,6 +33,7 @@ export function SettingsPage() {
     setCycleStartDay(user.cycleStartDay);
     setCustomDay(!PRESETS.some((p) => p.day === user.cycleStartDay));
     setMonthlyBudget(String(user.monthlyBudget));
+    setCurrency(user.currency);
   }, [user]);
 
   async function handleSubmit(e: FormEvent) {
@@ -37,6 +46,7 @@ export function SettingsPage() {
         name,
         cycleStartDay,
         monthlyBudget: Number(monthlyBudget),
+        currency,
       });
       setSuccess(true);
     } catch (err) {
@@ -107,6 +117,17 @@ export function SettingsPage() {
               value={monthlyBudget}
               onChange={(e) => setMonthlyBudget(e.target.value)}
             />
+          </div>
+
+          <div>
+            <Label htmlFor="currency">Moneda</Label>
+            <Select id="currency" value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}>
+              {CURRENCIES.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </Select>
           </div>
 
           <ErrorText>{error}</ErrorText>

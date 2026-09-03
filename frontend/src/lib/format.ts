@@ -1,11 +1,28 @@
-const currencyFormatter = new Intl.NumberFormat("es-MX", {
-  style: "currency",
-  currency: "USD",
-  maximumFractionDigits: 2,
-});
+import type { Currency } from "../types";
 
-export function formatMoney(amount: number): string {
-  return currencyFormatter.format(amount);
+const CURRENCY_LOCALE: Record<Currency, string> = {
+  USD: "en-US",
+  COP: "es-CO",
+  MXN: "es-MX",
+};
+
+const formatterCache = new Map<Currency, Intl.NumberFormat>();
+
+function getFormatter(currency: Currency): Intl.NumberFormat {
+  let formatter = formatterCache.get(currency);
+  if (!formatter) {
+    formatter = new Intl.NumberFormat(CURRENCY_LOCALE[currency], {
+      style: "currency",
+      currency,
+      maximumFractionDigits: currency === "COP" ? 0 : 2,
+    });
+    formatterCache.set(currency, formatter);
+  }
+  return formatter;
+}
+
+export function formatMoney(amount: number, currency: Currency = "USD"): string {
+  return getFormatter(currency).format(amount);
 }
 
 export function formatDate(isoDate: string): string {

@@ -5,6 +5,7 @@ export interface UserRow {
   name: string;
   cycle_start_day: number;
   monthly_budget: string;
+  currency: "USD" | "COP" | "MXN";
   created_at: Date;
 }
 
@@ -14,6 +15,7 @@ export interface CategoryRow {
   name: string;
   color: string;
   type: "INCOME" | "EXPENSE";
+  monthly_budget: string | null;
   created_at: Date;
 }
 
@@ -35,6 +37,7 @@ export function publicUser(row: UserRow) {
     name: row.name,
     cycleStartDay: row.cycle_start_day,
     monthlyBudget: Number(row.monthly_budget),
+    currency: row.currency,
   };
 }
 
@@ -45,6 +48,7 @@ export function mapCategory(row: CategoryRow) {
     name: row.name,
     color: row.color,
     type: row.type,
+    monthlyBudget: row.monthly_budget === null ? null : Number(row.monthly_budget),
     createdAt: row.created_at,
   };
 }

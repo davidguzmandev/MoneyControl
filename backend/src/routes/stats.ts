@@ -11,6 +11,10 @@ const rangeSchema = z.object({
   to: z.string().optional(),
 });
 
+const byCategoryQuerySchema = rangeSchema.extend({
+  type: z.enum(["INCOME", "EXPENSE"]).default("EXPENSE"),
+});
+
 function buildRangeConditions(userId: string, from: string | undefined, to: string | undefined, alias: string) {
   const conditions = [`${alias}.user_id = $1`];
   const values: unknown[] = [userId];
@@ -27,19 +31,20 @@ function buildRangeConditions(userId: string, from: string | undefined, to: stri
 }
 
 router.get("/by-category", async (req, res) => {
-  const parsed = rangeSchema.safeParse(req.query);
+  const parsed = byCategoryQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     res.status(400).json({ error: "Parámetros inválidos" });
     return;
   }
-  const { from, to } = parsed.data;
+  const { from, to, type } = parsed.data;
   const { where, values } = buildRangeConditions(req.userId!, from, to, "t");
+  values.push(type);
 
   const result = await pool.query<{ category_id: string; name: string; color: string; total: string }>(
     `SELECT c.id as category_id, c.name, c.color, SUM(t.amount) as total
      FROM transactions t
      JOIN categories c ON c.id = t.category_id
-     WHERE t.type = 'EXPENSE' AND ${where}
+     WHERE t.type = $${values.length} AND ${where}
      GROUP BY c.id, c.name, c.color`,
     values
   );

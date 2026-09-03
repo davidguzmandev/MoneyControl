@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
-import type { Category, TransactionType } from "../types";
+import type { BudgetSummary, Category, CategoryStat, Currency, TransactionType } from "../types";
+import { formatMoney } from "../lib/format";
 import { Button, Card, ErrorText, Input, Label } from "../components/ui";
+import { useAuth } from "../context/AuthContext";
 
 const COLOR_PALETTE = [
   "#22c55e",
@@ -19,10 +21,33 @@ const COLOR_PALETTE = [
 ];
 
 export function CategoriesPage() {
+  const { user } = useAuth();
+  const currency = user?.currency ?? "USD";
   const queryClient = useQueryClient();
   const { data } = useQuery({
     queryKey: ["categories"],
     queryFn: () => api.get<{ categories: Category[] }>("/categories").then((r) => r.categories),
+  });
+
+  const { data: budget } = useQuery({
+    queryKey: ["budget", "summary"],
+    queryFn: () => api.get<BudgetSummary>("/budget/summary"),
+  });
+
+  const periodParams = new URLSearchParams();
+  if (budget) {
+    periodParams.set("from", budget.periodStart);
+    periodParams.set("to", budget.periodEnd);
+  }
+  periodParams.set("type", "EXPENSE");
+
+  const { data: spentByCategory } = useQuery({
+    queryKey: ["stats", "by-category", "EXPENSE", budget?.periodStart, budget?.periodEnd],
+    queryFn: () =>
+      api
+        .get<{ categories: CategoryStat[] }>(`/stats/by-category?${periodParams.toString()}`)
+        .then((r) => r.categories),
+    enabled: !!budget,
   });
 
   const [name, setName] = useState("");
@@ -45,6 +70,14 @@ export function CategoriesPage() {
     onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo borrar la categoría"),
   });
 
+  const budgetMutation = useMutation({
+    mutationFn: ({ id, monthlyBudget }: { id: string; monthlyBudget: number | null }) =>
+      api.patch<{ category: Category }>(`/categories/${id}`, { monthlyBudget }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["categories"] }),
+    onError: (err) =>
+      setError(err instanceof ApiError ? err.message : "No se pudo guardar el presupuesto de la categoría"),
+  });
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setError(null);
@@ -54,37 +87,13 @@ export function CategoriesPage() {
 
   const incomeCategories = data?.filter((c) => c.type === "INCOME") ?? [];
   const expenseCategories = data?.filter((c) => c.type === "EXPENSE") ?? [];
-
-  function CategoryList({ categories, emptyLabel }: { categories: Category[]; emptyLabel: string }) {
-    return (
-      <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-        {categories.map((category) => (
-          <li key={category.id} className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-3">
-              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: category.color }} />
-              <span className="text-sm font-medium">{category.name}</span>
-            </div>
-            <button
-              onClick={() => {
-                setError(null);
-                deleteMutation.mutate(category.id);
-              }}
-              className="text-xs text-slate-400 transition hover:text-red-600"
-            >
-              Eliminar
-            </button>
-          </li>
-        ))}
-        {categories.length === 0 && <li className="py-6 text-center text-sm text-slate-400">{emptyLabel}</li>}
-      </ul>
-    );
-  }
+  const spentMap = new Map((spentByCategory ?? []).map((s) => [s.categoryId, s.total]));
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-xl font-semibold tracking-tight">Categorías</h1>
-        <p className="text-sm text-slate-500">Organiza tus movimientos por categoría.</p>
+        <p className="text-sm text-slate-500">Organiza tus movimientos por categoría y define presupuestos.</p>
       </div>
 
       <Card>
@@ -150,16 +159,130 @@ export function CategoriesPage() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
           <h2 className="mb-2 text-sm font-semibold text-emerald-600">Ingresos</h2>
-          <CategoryList categories={incomeCategories} emptyLabel="No tienes categorías de ingreso todavía." />
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {incomeCategories.map((category) => (
+              <li key={category.id} className="flex items-center justify-between py-3">
+                <div className="flex items-center gap-3">
+                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: category.color }} />
+                  <span className="text-sm font-medium">{category.name}</span>
+                </div>
+                <button
+                  onClick={() => {
+                    setError(null);
+                    deleteMutation.mutate(category.id);
+                  }}
+                  className="text-xs text-slate-400 transition hover:text-red-600"
+                >
+                  Eliminar
+                </button>
+              </li>
+            ))}
+            {incomeCategories.length === 0 && (
+              <li className="py-6 text-center text-sm text-slate-400">No tienes categorías de ingreso todavía.</li>
+            )}
+          </ul>
         </Card>
+
         <Card>
           <h2 className="mb-2 text-sm font-semibold text-red-600">Gastos</h2>
-          <CategoryList categories={expenseCategories} emptyLabel="No tienes categorías de gasto todavía." />
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {expenseCategories.map((category) => (
+              <ExpenseCategoryRow
+                key={category.id}
+                category={category}
+                spent={spentMap.get(category.id) ?? 0}
+                currency={currency}
+                onDelete={() => {
+                  setError(null);
+                  deleteMutation.mutate(category.id);
+                }}
+                onSaveBudget={(monthlyBudget) => {
+                  setError(null);
+                  budgetMutation.mutate({ id: category.id, monthlyBudget });
+                }}
+              />
+            ))}
+            {expenseCategories.length === 0 && (
+              <li className="py-6 text-center text-sm text-slate-400">No tienes categorías de gasto todavía.</li>
+            )}
+          </ul>
         </Card>
       </div>
     </div>
+  );
+}
+
+function ExpenseCategoryRow({
+  category,
+  spent,
+  currency,
+  onDelete,
+  onSaveBudget,
+}: {
+  category: Category;
+  spent: number;
+  currency: Currency;
+  onDelete: () => void;
+  onSaveBudget: (monthlyBudget: number | null) => void;
+}) {
+  const [budgetInput, setBudgetInput] = useState(category.monthlyBudget !== null ? String(category.monthlyBudget) : "");
+
+  useEffect(() => {
+    setBudgetInput(category.monthlyBudget !== null ? String(category.monthlyBudget) : "");
+  }, [category.monthlyBudget]);
+
+  function commitBudget() {
+    const trimmed = budgetInput.trim();
+    const parsed = trimmed === "" ? null : Number(trimmed);
+    if (parsed === category.monthlyBudget) return;
+    if (parsed !== null && (Number.isNaN(parsed) || parsed < 0)) return;
+    onSaveBudget(parsed);
+  }
+
+  const hasBudget = category.monthlyBudget !== null && category.monthlyBudget > 0;
+  const pct = hasBudget ? Math.min(100, (spent / category.monthlyBudget!) * 100) : 0;
+  const over = hasBudget && spent > category.monthlyBudget!;
+
+  return (
+    <li className="py-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: category.color }} />
+          <span className="text-sm font-medium">{category.name}</span>
+        </div>
+        <button onClick={onDelete} className="text-xs text-slate-400 transition hover:text-red-600">
+          Eliminar
+        </button>
+      </div>
+      <div className="mt-2 flex items-center gap-2 pl-6">
+        <span className="text-xs text-slate-400">Presupuesto:</span>
+        <Input
+          type="number"
+          min={0}
+          step="0.01"
+          placeholder="Sin límite"
+          value={budgetInput}
+          onChange={(e) => setBudgetInput(e.target.value)}
+          onBlur={commitBudget}
+          className="h-7 w-28 px-2 py-1 text-xs"
+        />
+        {hasBudget && (
+          <span className={`text-xs ${over ? "text-expense" : "text-slate-400"}`}>
+            {formatMoney(spent, currency)} / {formatMoney(category.monthlyBudget!, currency)}
+          </span>
+        )}
+      </div>
+      {hasBudget && (
+        <div className="mt-1.5 ml-6 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+          <div
+            className={`h-full rounded-full ${over ? "bg-red-600" : "bg-slate-900 dark:bg-slate-100"}`}
+            style={{ width: `${pct}%` }}
+          />
+        </div>
+      )}
+    </li>
   );
 }
