@@ -1,14 +1,6 @@
 import { pool } from "../db";
 import { daysInPeriod, getPeriodForDate } from "../lib/period";
-import { addUTCDays, diffUTCDays, formatUTCDate, utcMidnight } from "../lib/utcDate";
-
-export interface DailyBreakdownEntry {
-  date: string;
-  allowance: number;
-  spent: number;
-  earned: number;
-  leftover: number;
-}
+import { diffUTCDays, formatUTCDate, utcMidnight } from "../lib/utcDate";
 
 export interface BudgetSummary {
   periodStart: string;
@@ -22,7 +14,6 @@ export interface BudgetSummary {
   todayAllowance: number;
   spentToday: number;
   remainingToday: number;
-  dailyBreakdown: DailyBreakdownEntry[];
 }
 
 interface UserBudgetRow {
@@ -30,10 +21,11 @@ interface UserBudgetRow {
 }
 
 /**
- * The spendable budget for a period is the income logged in that period —
- * there's no separately configured budget number. Each day's allowance is
- * an even share of that income (recomputed as more income comes in) plus
- * whatever was left over (or overspent) the day before.
+ * The spendable budget for a period is the income logged in it — there's no
+ * separately configured number. Today's allowance is whatever is left of
+ * that budget (after everything spent before today) spread evenly over
+ * the days remaining in the period, so it re-paces itself every day
+ * instead of letting unspent days pile up into one lump sum.
  */
 export async function getBudgetSummary(
   userId: string,
@@ -48,45 +40,34 @@ export async function getBudgetSummary(
 
   const today = utcMidnight(referenceDate);
   const clampedToday = today.getTime() > period.end.getTime() ? period.end : today;
+  const todayKey = formatUTCDate(clampedToday);
 
   const txResult = await pool.query<{ amount: string; date: string; type: "INCOME" | "EXPENSE" }>(
     `SELECT amount, date, type FROM transactions
      WHERE user_id = $1 AND date >= $2 AND date <= $3`,
-    [userId, formatUTCDate(period.start), formatUTCDate(clampedToday)]
+    [userId, formatUTCDate(period.start), todayKey]
   );
 
-  const spentByDay = new Map<string, number>();
-  const earnedByDay = new Map<string, number>();
   let incomeSoFar = 0;
+  let spentSoFar = 0;
+  let spentToday = 0;
   for (const tx of txResult.rows) {
     const amount = Number(tx.amount);
-    if (tx.type === "EXPENSE") {
-      spentByDay.set(tx.date, (spentByDay.get(tx.date) ?? 0) + amount);
-    } else {
-      earnedByDay.set(tx.date, (earnedByDay.get(tx.date) ?? 0) + amount);
+    if (tx.type === "INCOME") {
       incomeSoFar += amount;
+    } else {
+      spentSoFar += amount;
+      if (tx.date === todayKey) spentToday += amount;
     }
   }
 
   const monthlyBudget = incomeSoFar;
   const dailyBase = totalDays > 0 ? monthlyBudget / totalDays : 0;
 
-  const numDaysElapsed = diffUTCDays(clampedToday, period.start) + 1;
-  const dailyBreakdown: DailyBreakdownEntry[] = [];
-  let carry = 0;
-  for (let i = 0; i < numDaysElapsed; i++) {
-    const day = addUTCDays(period.start, i);
-    const key = formatUTCDate(day);
-    const spent = spentByDay.get(key) ?? 0;
-    const earned = earnedByDay.get(key) ?? 0;
-    const allowance = dailyBase + carry;
-    const leftover = allowance - spent;
-    dailyBreakdown.push({ date: key, allowance, spent, earned, leftover });
-    carry = leftover;
-  }
-
-  const todayEntry = dailyBreakdown[dailyBreakdown.length - 1];
-  const spentSoFar = dailyBreakdown.reduce((sum, d) => sum + d.spent, 0);
+  const spentBeforeToday = spentSoFar - spentToday;
+  const remainingBeforeToday = monthlyBudget - spentBeforeToday;
+  const daysRemaining = diffUTCDays(period.end, clampedToday) + 1;
+  const todayAllowance = daysRemaining > 0 ? remainingBeforeToday / daysRemaining : 0;
 
   return {
     periodStart: formatUTCDate(period.start),
@@ -97,9 +78,8 @@ export async function getBudgetSummary(
     spentSoFar,
     incomeSoFar,
     remainingMonthly: monthlyBudget - spentSoFar,
-    todayAllowance: todayEntry?.allowance ?? dailyBase,
-    spentToday: todayEntry?.spent ?? 0,
-    remainingToday: todayEntry?.leftover ?? dailyBase,
-    dailyBreakdown,
+    todayAllowance,
+    spentToday,
+    remainingToday: todayAllowance - spentToday,
   };
 }

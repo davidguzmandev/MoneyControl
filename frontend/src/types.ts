@@ -31,14 +31,6 @@ export interface Transaction {
   createdAt: string;
 }
 
-export interface DailyBreakdownEntry {
-  date: string;
-  allowance: number;
-  spent: number;
-  earned: number;
-  leftover: number;
-}
-
 export interface BudgetSummary {
   periodStart: string;
   periodEnd: string;
@@ -51,7 +43,6 @@ export interface BudgetSummary {
   todayAllowance: number;
   spentToday: number;
   remainingToday: number;
-  dailyBreakdown: DailyBreakdownEntry[];
 }
 
 export interface CategoryStat {
