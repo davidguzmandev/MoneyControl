@@ -70,18 +70,35 @@ export async function getBudgetSummary(
     }
   }
 
-  const numDaysElapsed = diffUTCDays(clampedToday, period.start) + 1;
-  let carry = 0;
   let spentSoFar = 0;
+  for (const spent of spentByDay.values()) spentSoFar += spent;
+
+  // The carry chain starts on the first day the user actually logged
+  // something this period, not on the period's calendar start. Otherwise a
+  // user who only starts tracking (or only sets category budgets) well
+  // into the period would be credited a full daily share for every prior
+  // day as if it had gone unspent, producing a huge one-day windfall.
+  const earliestActivity =
+    txResult.rows.length > 0 ? txResult.rows.map((t) => t.date).sort()[0] : null;
+
+  let chainStart = period.start;
+  if (earliestActivity) {
+    const earliest = utcMidnight(earliestActivity);
+    if (earliest.getTime() > chainStart.getTime()) chainStart = earliest;
+  } else {
+    chainStart = clampedToday;
+  }
+
+  const numDaysElapsed = diffUTCDays(clampedToday, chainStart) + 1;
+  let carry = 0;
   let spentToday = 0;
   let todayAllowance = dailyBase;
   for (let i = 0; i < numDaysElapsed; i++) {
-    const day = addUTCDays(period.start, i);
+    const day = addUTCDays(chainStart, i);
     const key = formatUTCDate(day);
     const spent = spentByDay.get(key) ?? 0;
     const allowance = dailyBase + carry;
     const leftover = allowance - spent;
-    spentSoFar += spent;
     if (key === todayKey) {
       spentToday = spent;
       todayAllowance = allowance;
