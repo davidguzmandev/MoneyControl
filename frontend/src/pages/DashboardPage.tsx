@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import type { BudgetSummary, Category, Currency, Transaction } from "../types";
-import { formatDate, formatMoney } from "../lib/format";
+import { formatDate, formatMoney, todayISODate } from "../lib/format";
 import { Button, Card, Input, Label } from "../components/ui";
 import { Modal } from "../components/Modal";
 import { TransactionForm } from "../components/TransactionForm";
@@ -19,7 +19,7 @@ export function DashboardPage() {
 
   const { data: budget } = useQuery({
     queryKey: ["budget", "summary"],
-    queryFn: () => api.get<BudgetSummary>("/budget/summary"),
+    queryFn: () => api.get<BudgetSummary>(`/budget/summary?date=${todayISODate()}`),
   });
 
   const { data: categories } = useQuery({
@@ -71,7 +71,7 @@ export function DashboardPage() {
           <h1 className="text-xl font-semibold tracking-tight">Resumen</h1>
           {budget && (
             <p className="text-sm text-slate-500">
-              Periodo actual: {formatDate(budget.periodStart)} — {formatDate(budget.periodEnd)}
+              Periodo actual: {formatDate(budget.periodStart)} al {formatDate(budget.periodEnd)}
             </p>
           )}
         </div>
@@ -219,7 +219,7 @@ function SavingsSection({ savingsGoal, currency }: { savingsGoal: number; curren
         <div>
           <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ahorro</h2>
           <p className="text-xs text-slate-400">
-            Aparta un monto de tu ingreso cada periodo — se descuenta de lo disponible para gastar.
+            Aparta un monto de tu ingreso cada periodo. Se descuenta de lo disponible para gastar.
           </p>
         </div>
         <form onSubmit={handleSubmit} className="flex items-end gap-2">

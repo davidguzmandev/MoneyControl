@@ -11,9 +11,9 @@ const PRESETS = [
 ];
 
 const CURRENCIES: { value: Currency; label: string }[] = [
-  { value: "USD", label: "USD — Dólar estadounidense" },
-  { value: "COP", label: "COP — Peso colombiano" },
-  { value: "MXN", label: "MXN — Peso mexicano" },
+  { value: "USD", label: "USD: Dólar estadounidense" },
+  { value: "COP", label: "COP: Peso colombiano" },
+  { value: "MXN", label: "MXN: Peso mexicano" },
 ];
 
 export function SettingsPage() {

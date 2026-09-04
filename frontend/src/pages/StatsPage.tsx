@@ -15,7 +15,7 @@ import {
 } from "recharts";
 import { api } from "../lib/api";
 import type { BudgetSummary, Category, CategoryStat, Currency, Transaction, TimelinePoint } from "../types";
-import { formatDate, formatMoney } from "../lib/format";
+import { formatDate, formatMoney, todayISODate } from "../lib/format";
 import { Button, Card, Select } from "../components/ui";
 import { Modal } from "../components/Modal";
 import { TransactionForm } from "../components/TransactionForm";
@@ -91,7 +91,7 @@ export function StatsPage() {
 
   const { data: budget } = useQuery({
     queryKey: ["budget", "summary"],
-    queryFn: () => api.get<BudgetSummary>("/budget/summary"),
+    queryFn: () => api.get<BudgetSummary>(`/budget/summary?date=${todayISODate()}`),
   });
 
   const { data: categories } = useQuery({

@@ -3,7 +3,7 @@ import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
 import type { BudgetSummary, Category, CategoryStat, Currency, TransactionType } from "../types";
-import { formatMoney } from "../lib/format";
+import { formatMoney, todayISODate } from "../lib/format";
 import { Button, Card, ErrorText, Input, Label } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 
@@ -31,7 +31,7 @@ export function CategoriesPage() {
 
   const { data: budget } = useQuery({
     queryKey: ["budget", "summary"],
-    queryFn: () => api.get<BudgetSummary>("/budget/summary"),
+    queryFn: () => api.get<BudgetSummary>(`/budget/summary?date=${todayISODate()}`),
   });
 
   const periodParams = new URLSearchParams();
