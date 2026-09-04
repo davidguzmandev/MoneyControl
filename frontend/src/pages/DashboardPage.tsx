@@ -219,7 +219,7 @@ function SavingsSection({ savingsGoal, currency }: { savingsGoal: number; curren
         <div>
           <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ahorro</h2>
           <p className="text-xs text-slate-400">
-            Aparta un monto de tu ingreso cada periodo. Se descuenta de lo disponible para gastar.
+            Aparta un monto de tu ingreso cada periodo. Reduce cuánto puedes asignar a tus categorías de gasto.
           </p>
         </div>
         <form onSubmit={handleSubmit} className="flex items-end gap-2">

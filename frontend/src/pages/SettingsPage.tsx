@@ -116,9 +116,9 @@ export function SettingsPage() {
           </div>
 
           <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-800">
-            Tu presupuesto no se configura por separado: es la suma de los ingresos que registres en cada
-            periodo. Desde <span className="font-medium">Categorías</span> puedes repartir ese ingreso
-            asignando un presupuesto a cada categoría de gasto.
+            Tu presupuesto diario se calcula con lo que asignes a cada categoría de gasto en{" "}
+            <span className="font-medium">Categorías</span>. Lo que asignes no puede superar tu ingreso
+            del periodo, y lo que no gastes en un día se suma al siguiente.
           </div>
 
           <ErrorText>{error}</ErrorText>

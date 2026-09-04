@@ -19,8 +19,8 @@ async function assertBudgetWithinIncome(
   newBudget: number,
   excludeCategoryId?: string
 ): Promise<string | null> {
-  const { monthlyBudget, savingsGoal } = await getBudgetSummary(userId);
-  const spendable = monthlyBudget - savingsGoal;
+  const { incomeSoFar, savingsGoal } = await getBudgetSummary(userId);
+  const spendable = incomeSoFar - savingsGoal;
 
   const existingSumResult = await pool.query<{ total: string | null }>(
     `SELECT SUM(monthly_budget) as total FROM categories

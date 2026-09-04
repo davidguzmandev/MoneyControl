@@ -59,6 +59,7 @@ export function CategoriesPage() {
     mutationFn: () => api.post<{ category: Category }>("/categories", { name, color, type }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["budget"] });
       setName("");
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "Error al crear la categoría"),
@@ -66,14 +67,20 @@ export function CategoriesPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/categories/${id}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["categories"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["budget"] });
+    },
     onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo borrar la categoría"),
   });
 
   const budgetMutation = useMutation({
     mutationFn: ({ id, monthlyBudget }: { id: string; monthlyBudget: number | null }) =>
       api.patch<{ category: Category }>(`/categories/${id}`, { monthlyBudget }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["categories"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["budget"] });
+    },
   });
 
   function handleSubmit(e: FormEvent) {

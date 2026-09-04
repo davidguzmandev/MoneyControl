@@ -1,6 +1,6 @@
 import { pool } from "../db";
 import { daysInPeriod, getPeriodForDate } from "../lib/period";
-import { diffUTCDays, formatUTCDate, utcMidnight } from "../lib/utcDate";
+import { addUTCDays, diffUTCDays, formatUTCDate, utcMidnight } from "../lib/utcDate";
 
 export interface BudgetSummary {
   periodStart: string;
@@ -23,12 +23,10 @@ interface UserBudgetRow {
 }
 
 /**
- * The spendable budget for a period is the income logged in it minus
- * whatever the user wants to set aside as savings — there's no
- * separately configured budget number. Today's allowance is whatever is
- * left of that (after everything spent before today) spread evenly over
- * the days remaining in the period, so it re-paces itself every day
- * instead of letting unspent days pile up into one lump sum.
+ * The daily spending value comes from what the user has assigned across
+ * their expense categories, split evenly over the days in the period.
+ * Whatever isn't spent on a given day carries over in full to the next
+ * day, and the next, compounding for as long as it goes unspent.
  */
 export async function getBudgetSummary(
   userId: string,
@@ -47,6 +45,14 @@ export async function getBudgetSummary(
   const clampedToday = today.getTime() > period.end.getTime() ? period.end : today;
   const todayKey = formatUTCDate(clampedToday);
 
+  const categoryBudgetResult = await pool.query<{ total: string | null }>(
+    `SELECT SUM(monthly_budget) as total FROM categories
+     WHERE user_id = $1 AND type = 'EXPENSE' AND monthly_budget IS NOT NULL`,
+    [userId]
+  );
+  const monthlyBudget = Number(categoryBudgetResult.rows[0]?.total ?? 0);
+  const dailyBase = totalDays > 0 ? monthlyBudget / totalDays : 0;
+
   const txResult = await pool.query<{ amount: string; date: string; type: "INCOME" | "EXPENSE" }>(
     `SELECT amount, date, type FROM transactions
      WHERE user_id = $1 AND date >= $2 AND date <= $3`,
@@ -54,26 +60,34 @@ export async function getBudgetSummary(
   );
 
   let incomeSoFar = 0;
-  let spentSoFar = 0;
-  let spentToday = 0;
+  const spentByDay = new Map<string, number>();
   for (const tx of txResult.rows) {
     const amount = Number(tx.amount);
     if (tx.type === "INCOME") {
       incomeSoFar += amount;
     } else {
-      spentSoFar += amount;
-      if (tx.date === todayKey) spentToday += amount;
+      spentByDay.set(tx.date, (spentByDay.get(tx.date) ?? 0) + amount);
     }
   }
 
-  const monthlyBudget = incomeSoFar;
-  const spendableBudget = monthlyBudget - savingsGoal;
-  const dailyBase = totalDays > 0 ? spendableBudget / totalDays : 0;
-
-  const spentBeforeToday = spentSoFar - spentToday;
-  const remainingBeforeToday = spendableBudget - spentBeforeToday;
-  const daysRemaining = diffUTCDays(period.end, clampedToday) + 1;
-  const todayAllowance = daysRemaining > 0 ? remainingBeforeToday / daysRemaining : 0;
+  const numDaysElapsed = diffUTCDays(clampedToday, period.start) + 1;
+  let carry = 0;
+  let spentSoFar = 0;
+  let spentToday = 0;
+  let todayAllowance = dailyBase;
+  for (let i = 0; i < numDaysElapsed; i++) {
+    const day = addUTCDays(period.start, i);
+    const key = formatUTCDate(day);
+    const spent = spentByDay.get(key) ?? 0;
+    const allowance = dailyBase + carry;
+    const leftover = allowance - spent;
+    spentSoFar += spent;
+    if (key === todayKey) {
+      spentToday = spent;
+      todayAllowance = allowance;
+    }
+    carry = leftover;
+  }
 
   return {
     periodStart: formatUTCDate(period.start),
@@ -84,9 +98,9 @@ export async function getBudgetSummary(
     dailyBase,
     spentSoFar,
     incomeSoFar,
-    remainingMonthly: spendableBudget - spentSoFar,
+    remainingMonthly: monthlyBudget - spentSoFar,
     todayAllowance,
     spentToday,
-    remainingToday: todayAllowance - spentToday,
+    remainingToday: carry,
   };
 }
