@@ -4,6 +4,7 @@ const CURRENCY_LOCALE: Record<Currency, string> = {
   USD: "en-US",
   COP: "es-CO",
   MXN: "es-MX",
+  CAD: "en-CA",
 };
 
 const formatterCache = new Map<Currency, Intl.NumberFormat>();

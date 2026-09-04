@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
-import { ApiError } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import type { Currency } from "../types";
 import { Button, Card, ErrorText, Input, Label, Select } from "../components/ui";
 
@@ -14,6 +15,7 @@ const CURRENCIES: { value: Currency; label: string }[] = [
   { value: "USD", label: "USD: Dólar estadounidense" },
   { value: "COP", label: "COP: Peso colombiano" },
   { value: "MXN", label: "MXN: Peso mexicano" },
+  { value: "CAD", label: "CAD: Dólar canadiense" },
 ];
 
 export function SettingsPage() {
@@ -129,6 +131,133 @@ export function SettingsPage() {
           </Button>
         </form>
       </Card>
+
+      <WiseIntegrationCard />
     </div>
+  );
+}
+
+interface WiseStatus {
+  connected: boolean;
+  currency: string | null;
+  lastSyncedAt: string | null;
+}
+
+function WiseIntegrationCard() {
+  const queryClient = useQueryClient();
+  const [token, setToken] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const { data: status } = useQuery({
+    queryKey: ["integrations", "wise", "status"],
+    queryFn: () => api.get<WiseStatus>("/integrations/wise/status"),
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: (apiToken: string) =>
+      api.post<{ connected: boolean; currency: string; imported: number }>("/integrations/wise/connect", {
+        apiToken,
+      }),
+    onSuccess: (data) => {
+      setError(null);
+      setToken("");
+      setMessage(`Conectado. Se importaron ${data.imported} movimientos.`);
+      queryClient.invalidateQueries({ queryKey: ["integrations", "wise", "status"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["budget"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo conectar con Wise"),
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: () => api.post<{ imported: number }>("/integrations/wise/sync"),
+    onSuccess: (data) => {
+      setError(null);
+      setMessage(`Sincronizado. Se importaron ${data.imported} movimientos nuevos.`);
+      queryClient.invalidateQueries({ queryKey: ["integrations", "wise", "status"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["budget"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo sincronizar con Wise"),
+  });
+
+  const disconnectMutation = useMutation({
+    mutationFn: () => api.delete("/integrations/wise"),
+    onSuccess: () => {
+      setError(null);
+      setMessage(null);
+      queryClient.invalidateQueries({ queryKey: ["integrations", "wise", "status"] });
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo desconectar Wise"),
+  });
+
+  function handleConnect(e: FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    if (!token.trim()) return;
+    connectMutation.mutate(token.trim());
+  }
+
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Wise</h2>
+      <p className="mt-1 text-xs text-slate-400">
+        Conecta tu cuenta de Wise para importar tus movimientos automáticamente cada 15 minutos. Se
+        guardan en categorías separadas ("Wise Ingreso" / "Wise Gasto") para que las reclasifiques si
+        quieres.
+      </p>
+
+      {status?.connected ? (
+        <div className="mt-4 space-y-3">
+          <p className="text-sm text-emerald-600">
+            Conectado (moneda de Wise: {status.currency}).{" "}
+            {status.lastSyncedAt
+              ? `Última sincronización: ${new Date(status.lastSyncedAt).toLocaleString("es-MX")}`
+              : "Todavía no se ha sincronizado."}
+          </p>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              disabled={syncMutation.isPending}
+              onClick={() => syncMutation.mutate()}
+            >
+              {syncMutation.isPending ? "Sincronizando..." : "Sincronizar ahora"}
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              disabled={disconnectMutation.isPending}
+              onClick={() => disconnectMutation.mutate()}
+            >
+              Desconectar
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <form onSubmit={handleConnect} className="mt-4 flex flex-wrap items-end gap-2">
+          <div className="min-w-[220px] flex-1">
+            <Label htmlFor="wiseToken">Token de API de Wise</Label>
+            <Input
+              id="wiseToken"
+              type="password"
+              value={token}
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="Pega tu token aquí"
+            />
+          </div>
+          <Button type="submit" disabled={connectMutation.isPending}>
+            {connectMutation.isPending ? "Conectando..." : "Conectar"}
+          </Button>
+        </form>
+      )}
+
+      <ErrorText>{error}</ErrorText>
+      {message && <p className="mt-2 text-xs text-emerald-600">{message}</p>}
+    </Card>
   );
 }

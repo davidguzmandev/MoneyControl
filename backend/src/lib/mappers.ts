@@ -5,7 +5,7 @@ export interface UserRow {
   name: string;
   cycle_start_day: number;
   monthly_budget: string;
-  currency: "USD" | "COP" | "MXN";
+  currency: "USD" | "COP" | "MXN" | "CAD";
   savings_goal: string;
   created_at: Date;
 }

@@ -1,5 +1,5 @@
 export type TransactionType = "INCOME" | "EXPENSE";
-export type Currency = "USD" | "COP" | "MXN";
+export type Currency = "USD" | "COP" | "MXN" | "CAD";
 
 export interface User {
   id: string;

@@ -113,7 +113,7 @@ router.get("/me", requireAuth, async (req, res) => {
 const settingsSchema = z.object({
   name: z.string().min(1).max(80).optional(),
   cycleStartDay: z.number().int().min(1).max(28).optional(),
-  currency: z.enum(["USD", "COP", "MXN"]).optional(),
+  currency: z.enum(["USD", "COP", "MXN", "CAD"]).optional(),
   savingsGoal: z.number().min(0).optional(),
 });
 
