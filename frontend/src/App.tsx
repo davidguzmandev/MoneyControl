@@ -4,7 +4,6 @@ import { Layout } from "./components/Layout";
 import { LoginPage } from "./pages/LoginPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { DashboardPage } from "./pages/DashboardPage";
-import { TransactionsPage } from "./pages/TransactionsPage";
 import { CategoriesPage } from "./pages/CategoriesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { StatsPage } from "./pages/StatsPage";
@@ -20,7 +19,7 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/app" element={<Layout />}>
           <Route index element={<DashboardPage />} />
-          <Route path="transactions" element={<TransactionsPage />} />
+          <Route path="transactions" element={<Navigate to="/app/stats" replace />} />
           <Route path="categories" element={<CategoriesPage />} />
           <Route path="stats" element={<StatsPage />} />
           <Route path="settings" element={<SettingsPage />} />

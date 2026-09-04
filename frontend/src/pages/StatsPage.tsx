@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bar,
   BarChart,
@@ -14,9 +14,12 @@ import {
   YAxis,
 } from "recharts";
 import { api } from "../lib/api";
-import type { BudgetSummary, CategoryStat, Currency, TimelinePoint } from "../types";
+import type { BudgetSummary, Category, CategoryStat, Currency, Transaction, TimelinePoint } from "../types";
 import { formatDate, formatMoney } from "../lib/format";
-import { Card } from "../components/ui";
+import { Button, Card, Select } from "../components/ui";
+import { Modal } from "../components/Modal";
+import { TransactionForm } from "../components/TransactionForm";
+import type { TransactionFormValues } from "../components/TransactionForm";
 import { useAuth } from "../context/AuthContext";
 
 type RangeOption = "period" | "30" | "90" | "all";
@@ -79,11 +82,21 @@ function CategoryPieCard({
 export function StatsPage() {
   const { user } = useAuth();
   const currency = user?.currency ?? "USD";
+  const queryClient = useQueryClient();
   const [range, setRange] = useState<RangeOption>("period");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState<Transaction | null>(null);
 
   const { data: budget } = useQuery({
     queryKey: ["budget", "summary"],
     queryFn: () => api.get<BudgetSummary>("/budget/summary"),
+  });
+
+  const { data: categories } = useQuery({
+    queryKey: ["categories"],
+    queryFn: () => api.get<{ categories: Category[] }>("/categories").then((r) => r.categories),
   });
 
   const { from, to } = useMemo(() => {
@@ -129,34 +142,81 @@ export function StatsPage() {
       api.get<{ timeline: TimelinePoint[] }>(`/stats/timeline?${rangeParams.toString()}`).then((r) => r.timeline),
   });
 
+  const listParams = new URLSearchParams(rangeParams);
+  if (categoryFilter) listParams.set("categoryId", categoryFilter);
+  if (typeFilter) listParams.set("type", typeFilter);
+
+  const { data: transactions } = useQuery({
+    queryKey: ["transactions", "list", from, to, categoryFilter, typeFilter],
+    queryFn: () =>
+      api.get<{ transactions: Transaction[] }>(`/transactions?${listParams.toString()}`).then((r) => r.transactions),
+  });
+
+  const createMutation = useMutation({
+    mutationFn: (values: TransactionFormValues) => api.post("/transactions", values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["budget"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      setModalOpen(false);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (values: TransactionFormValues) => api.patch(`/transactions/${editing!.id}`, values),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["budget"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      setEditing(null);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/transactions/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["budget"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+    },
+  });
+
+  const filteredTotal = useMemo(() => {
+    if (!transactions) return 0;
+    return transactions.reduce((sum, t) => sum + (t.type === "INCOME" ? t.amount : -t.amount), 0);
+  }, [transactions]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Estadísticas</h1>
-          <p className="text-sm text-slate-500">Analiza tus gastos e ingresos a lo largo del tiempo.</p>
+          <h1 className="text-xl font-semibold tracking-tight">Estadísticas y movimientos</h1>
+          <p className="text-sm text-slate-500">Analiza tus ingresos y gastos, y consulta tus movimientos.</p>
         </div>
-        <div className="flex gap-1 rounded-full bg-slate-100 p-1 dark:bg-slate-800">
-          {(
-            [
-              { key: "period", label: "Periodo actual" },
-              { key: "30", label: "30 días" },
-              { key: "90", label: "90 días" },
-              { key: "all", label: "Todo" },
-            ] as { key: RangeOption; label: string }[]
-          ).map((opt) => (
-            <button
-              key={opt.key}
-              onClick={() => setRange(opt.key)}
-              className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                range === opt.key
-                  ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100"
-                  : "text-slate-500"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1 rounded-full bg-slate-100 p-1 dark:bg-slate-800">
+            {(
+              [
+                { key: "period", label: "Periodo actual" },
+                { key: "30", label: "30 días" },
+                { key: "90", label: "90 días" },
+                { key: "all", label: "Todo" },
+              ] as { key: RangeOption; label: string }[]
+            ).map((opt) => (
+              <button
+                key={opt.key}
+                onClick={() => setRange(opt.key)}
+                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                  range === opt.key
+                    ? "bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100"
+                    : "text-slate-500"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          <Button onClick={() => setModalOpen(true)}>+ Nuevo movimiento</Button>
         </div>
       </div>
 
@@ -196,6 +256,100 @@ export function StatsPage() {
           <p className="py-10 text-center text-sm text-slate-400">No hay movimientos en este rango.</p>
         )}
       </Card>
+
+      <div>
+        <h2 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Movimientos</h2>
+        <Card className="mb-4 flex flex-wrap items-center gap-3">
+          <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-auto">
+            <option value="">Todas las categorías</option>
+            {categories?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </Select>
+          <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-auto">
+            <option value="">Todos los tipos</option>
+            <option value="INCOME">Ingresos</option>
+            <option value="EXPENSE">Gastos</option>
+          </Select>
+          <span className="ml-auto text-sm text-slate-500">
+            Balance del filtro:{" "}
+            <span className={filteredTotal >= 0 ? "font-semibold text-income" : "font-semibold text-expense"}>
+              {formatMoney(filteredTotal, currency)}
+            </span>
+          </span>
+        </Card>
+
+        <Card>
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {transactions?.map((t) => (
+              <li key={t.id} className="flex items-center justify-between gap-3 py-3">
+                <div className="flex items-center gap-3">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: t.category.color }}
+                  />
+                  <div>
+                    <p className="text-sm font-medium">{t.category.name}</p>
+                    <p className="text-xs text-slate-400">
+                      {formatDate(t.date.slice(0, 10))}
+                      {t.description ? ` · ${t.description}` : ""}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`text-sm font-semibold ${t.type === "INCOME" ? "text-income" : "text-expense"}`}
+                  >
+                    {t.type === "INCOME" ? "+" : "-"}
+                    {formatMoney(t.amount, currency)}
+                  </span>
+                  <button
+                    onClick={() => setEditing(t)}
+                    className="text-xs text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => deleteMutation.mutate(t.id)}
+                    className="text-xs text-slate-400 transition hover:text-red-600"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </li>
+            ))}
+            {transactions?.length === 0 && (
+              <li className="py-6 text-center text-sm text-slate-400">No hay movimientos en este rango.</li>
+            )}
+          </ul>
+        </Card>
+      </div>
+
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nuevo movimiento">
+        <TransactionForm
+          categories={categories ?? []}
+          onSubmit={async (values) => {
+            await createMutation.mutateAsync(values);
+          }}
+          onCancel={() => setModalOpen(false)}
+        />
+      </Modal>
+
+      <Modal open={!!editing} onClose={() => setEditing(null)} title="Editar movimiento">
+        {editing && (
+          <TransactionForm
+            categories={categories ?? []}
+            initial={editing}
+            submitLabel="Guardar cambios"
+            onSubmit={async (values) => {
+              await updateMutation.mutateAsync(values);
+            }}
+            onCancel={() => setEditing(null)}
+          />
+        )}
+      </Modal>
     </div>
   );
 }

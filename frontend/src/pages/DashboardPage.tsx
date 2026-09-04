@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
+import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "../lib/api";
-import type { BudgetSummary, Category, Transaction } from "../types";
+import type { BudgetSummary, Category, Currency, Transaction } from "../types";
 import { formatDate, formatMoney } from "../lib/format";
-import { Button, Card, Input } from "../components/ui";
+import { Button, Card, Input, Label } from "../components/ui";
 import { Modal } from "../components/Modal";
 import { TransactionForm } from "../components/TransactionForm";
 import type { TransactionFormValues } from "../components/TransactionForm";
@@ -93,12 +94,11 @@ export function DashboardPage() {
         </p>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
           <p className="text-xs text-slate-500">Presupuesto mensual</p>
           <p className="mt-1 text-lg font-semibold">{formatMoney(budget?.monthlyBudget ?? 0, currency)}</p>
         </Card>
-        <SavingsCard />
         <Card>
           <p className="text-xs text-slate-500">Gastado en el periodo</p>
           <p className="mt-1 text-lg font-semibold text-expense">
@@ -112,6 +112,8 @@ export function DashboardPage() {
           </p>
         </Card>
       </div>
+
+      <SavingsSection savingsGoal={budget?.savingsGoal ?? 0} currency={currency} />
 
       <Card>
         <h2 className="mb-3 text-sm font-semibold text-slate-500">Movimientos recientes</h2>
@@ -178,27 +180,34 @@ export function DashboardPage() {
   );
 }
 
-function SavingsCard() {
-  const { user, updateSettings } = useAuth();
-  const [value, setValue] = useState(String(user?.savingsGoal ?? 0));
+function SavingsSection({ savingsGoal, currency }: { savingsGoal: number; currency: Currency }) {
+  const { updateSettings } = useAuth();
+  const [value, setValue] = useState(String(savingsGoal));
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (user) setValue(String(user.savingsGoal));
-  }, [user]);
+    setValue(String(savingsGoal ?? 0));
+  }, [savingsGoal]);
 
-  async function commit() {
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
     const trimmed = value.trim();
     const parsed = trimmed === "" ? 0 : Number(trimmed);
-    if (Number.isNaN(parsed) || parsed < 0 || parsed === user?.savingsGoal) return;
+    if (Number.isNaN(parsed) || parsed < 0) {
+      setError("Ingresa un monto válido");
+      return;
+    }
     setError(null);
+    setSuccess(false);
     setSaving(true);
     try {
       await updateSettings({ savingsGoal: parsed });
+      setSuccess(true);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo guardar el ahorro");
-      setValue(String(user?.savingsGoal ?? 0));
+      setValue(String(savingsGoal));
     } finally {
       setSaving(false);
     }
@@ -206,21 +215,39 @@ function SavingsCard() {
 
   return (
     <Card>
-      <p className="text-xs text-slate-500">Ahorro</p>
-      <Input
-        type="number"
-        min={0}
-        step="0.01"
-        value={value}
-        disabled={saving}
-        onChange={(e) => setValue(e.target.value)}
-        onBlur={commit}
-        className="mt-1 h-8 px-2 py-1 text-lg font-semibold"
-      />
-      {error ? (
-        <p className="mt-1 text-xs text-red-600">{error}</p>
-      ) : (
-        <p className="mt-1 text-xs text-slate-400">Se descuenta de tu disponible cada periodo</p>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ahorro</h2>
+          <p className="text-xs text-slate-400">
+            Aparta un monto de tu ingreso cada periodo — se descuenta de lo disponible para gastar.
+          </p>
+        </div>
+        <form onSubmit={handleSubmit} className="flex items-end gap-2">
+          <div className="w-32">
+            <Label htmlFor="savingsGoal">Meta de ahorro</Label>
+            <Input
+              id="savingsGoal"
+              type="number"
+              min={0}
+              step="0.01"
+              value={value}
+              disabled={saving}
+              onChange={(e) => {
+                setValue(e.target.value);
+                setSuccess(false);
+              }}
+            />
+          </div>
+          <Button type="submit" variant="secondary" disabled={saving}>
+            {saving ? "Guardando..." : "Guardar"}
+          </Button>
+        </form>
+      </div>
+      {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+      {success && (
+        <p className="mt-2 text-xs text-emerald-600">
+          Guardado: ahorras {formatMoney(Number(value) || 0, currency)} por periodo.
+        </p>
       )}
     </Card>
   );

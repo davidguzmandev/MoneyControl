@@ -3,9 +3,8 @@ import { useAuth } from "../context/AuthContext";
 
 const navItems = [
   { to: "/app", label: "Resumen", end: true },
-  { to: "/app/transactions", label: "Movimientos" },
   { to: "/app/categories", label: "Categorías" },
-  { to: "/app/stats", label: "Estadísticas" },
+  { to: "/app/stats", label: "Estadísticas y movimientos" },
   { to: "/app/settings", label: "Configuración" },
 ];
 
