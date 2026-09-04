@@ -6,6 +6,7 @@ export interface UserRow {
   cycle_start_day: number;
   monthly_budget: string;
   currency: "USD" | "COP" | "MXN";
+  savings_goal: string;
   created_at: Date;
 }
 
@@ -37,6 +38,7 @@ export function publicUser(row: UserRow) {
     name: row.name,
     cycleStartDay: row.cycle_start_day,
     currency: row.currency,
+    savingsGoal: Number(row.savings_goal),
   };
 }
 

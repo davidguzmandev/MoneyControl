@@ -11,14 +11,16 @@ router.use(requireAuth);
 
 /**
  * Category budgets are envelopes carved out of the income already logged
- * for the current period, so their sum can never exceed it.
+ * for the current period (minus whatever is set aside as savings), so
+ * their sum can never exceed that.
  */
 async function assertBudgetWithinIncome(
   userId: string,
   newBudget: number,
   excludeCategoryId?: string
 ): Promise<string | null> {
-  const { incomeSoFar } = await getBudgetSummary(userId);
+  const { monthlyBudget, savingsGoal } = await getBudgetSummary(userId);
+  const spendable = monthlyBudget - savingsGoal;
 
   const existingSumResult = await pool.query<{ total: string | null }>(
     `SELECT SUM(monthly_budget) as total FROM categories
@@ -28,8 +30,8 @@ async function assertBudgetWithinIncome(
   );
   const existingSum = Number(existingSumResult.rows[0]?.total ?? 0);
 
-  if (existingSum + newBudget > incomeSoFar) {
-    return `Los presupuestos de categorías (${(existingSum + newBudget).toFixed(2)}) no pueden superar tu ingreso del periodo (${incomeSoFar.toFixed(2)})`;
+  if (existingSum + newBudget > spendable) {
+    return `Los presupuestos de categorías (${(existingSum + newBudget).toFixed(2)}) no pueden superar tu ingreso disponible después del ahorro (${spendable.toFixed(2)})`;
   }
   return null;
 }

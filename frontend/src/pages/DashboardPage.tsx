@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { api } from "../lib/api";
+import { api, ApiError } from "../lib/api";
 import type { BudgetSummary, Category, Transaction } from "../types";
 import { formatDate, formatMoney } from "../lib/format";
-import { Button, Card } from "../components/ui";
+import { Button, Card, Input } from "../components/ui";
 import { Modal } from "../components/Modal";
 import { TransactionForm } from "../components/TransactionForm";
 import type { TransactionFormValues } from "../components/TransactionForm";
@@ -93,11 +93,12 @@ export function DashboardPage() {
         </p>
       </Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <p className="text-xs text-slate-500">Presupuesto mensual</p>
           <p className="mt-1 text-lg font-semibold">{formatMoney(budget?.monthlyBudget ?? 0, currency)}</p>
         </Card>
+        <SavingsCard />
         <Card>
           <p className="text-xs text-slate-500">Gastado en el periodo</p>
           <p className="mt-1 text-lg font-semibold text-expense">
@@ -174,5 +175,53 @@ export function DashboardPage() {
         )}
       </Modal>
     </div>
+  );
+}
+
+function SavingsCard() {
+  const { user, updateSettings } = useAuth();
+  const [value, setValue] = useState(String(user?.savingsGoal ?? 0));
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (user) setValue(String(user.savingsGoal));
+  }, [user]);
+
+  async function commit() {
+    const trimmed = value.trim();
+    const parsed = trimmed === "" ? 0 : Number(trimmed);
+    if (Number.isNaN(parsed) || parsed < 0 || parsed === user?.savingsGoal) return;
+    setError(null);
+    setSaving(true);
+    try {
+      await updateSettings({ savingsGoal: parsed });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo guardar el ahorro");
+      setValue(String(user?.savingsGoal ?? 0));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <p className="text-xs text-slate-500">Ahorro</p>
+      <Input
+        type="number"
+        min={0}
+        step="0.01"
+        value={value}
+        disabled={saving}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={commit}
+        className="mt-1 h-8 px-2 py-1 text-lg font-semibold"
+      />
+      {error ? (
+        <p className="mt-1 text-xs text-red-600">{error}</p>
+      ) : (
+        <p className="mt-1 text-xs text-slate-400">Se descuenta de tu disponible cada periodo</p>
+      )}
+    </Card>
   );
 }

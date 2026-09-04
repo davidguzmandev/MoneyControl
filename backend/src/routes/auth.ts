@@ -114,6 +114,7 @@ const settingsSchema = z.object({
   name: z.string().min(1).max(80).optional(),
   cycleStartDay: z.number().int().min(1).max(28).optional(),
   currency: z.enum(["USD", "COP", "MXN"]).optional(),
+  savingsGoal: z.number().min(0).optional(),
 });
 
 router.patch("/me", requireAuth, async (req, res) => {
@@ -138,6 +139,10 @@ router.patch("/me", requireAuth, async (req, res) => {
   if (parsed.data.currency !== undefined) {
     fields.push(`currency = $${idx++}`);
     values.push(parsed.data.currency);
+  }
+  if (parsed.data.savingsGoal !== undefined) {
+    fields.push(`savings_goal = $${idx++}`);
+    values.push(parsed.data.savingsGoal);
   }
 
   if (fields.length === 0) {

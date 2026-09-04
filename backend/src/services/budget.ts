@@ -7,6 +7,7 @@ export interface BudgetSummary {
   periodEnd: string;
   totalDays: number;
   monthlyBudget: number;
+  savingsGoal: number;
   dailyBase: number;
   spentSoFar: number;
   incomeSoFar: number;
@@ -18,12 +19,14 @@ export interface BudgetSummary {
 
 interface UserBudgetRow {
   cycle_start_day: number;
+  savings_goal: string;
 }
 
 /**
- * The spendable budget for a period is the income logged in it — there's no
- * separately configured number. Today's allowance is whatever is left of
- * that budget (after everything spent before today) spread evenly over
+ * The spendable budget for a period is the income logged in it minus
+ * whatever the user wants to set aside as savings — there's no
+ * separately configured budget number. Today's allowance is whatever is
+ * left of that (after everything spent before today) spread evenly over
  * the days remaining in the period, so it re-paces itself every day
  * instead of letting unspent days pile up into one lump sum.
  */
@@ -31,10 +34,12 @@ export async function getBudgetSummary(
   userId: string,
   referenceDate: Date = new Date()
 ): Promise<BudgetSummary> {
-  const userResult = await pool.query<UserBudgetRow>("SELECT cycle_start_day FROM users WHERE id = $1", [
-    userId,
-  ]);
+  const userResult = await pool.query<UserBudgetRow>(
+    "SELECT cycle_start_day, savings_goal FROM users WHERE id = $1",
+    [userId]
+  );
   const user = userResult.rows[0];
+  const savingsGoal = Number(user.savings_goal);
   const period = getPeriodForDate(referenceDate, user.cycle_start_day);
   const totalDays = daysInPeriod(period);
 
@@ -62,10 +67,11 @@ export async function getBudgetSummary(
   }
 
   const monthlyBudget = incomeSoFar;
-  const dailyBase = totalDays > 0 ? monthlyBudget / totalDays : 0;
+  const spendableBudget = monthlyBudget - savingsGoal;
+  const dailyBase = totalDays > 0 ? spendableBudget / totalDays : 0;
 
   const spentBeforeToday = spentSoFar - spentToday;
-  const remainingBeforeToday = monthlyBudget - spentBeforeToday;
+  const remainingBeforeToday = spendableBudget - spentBeforeToday;
   const daysRemaining = diffUTCDays(period.end, clampedToday) + 1;
   const todayAllowance = daysRemaining > 0 ? remainingBeforeToday / daysRemaining : 0;
 
@@ -74,10 +80,11 @@ export async function getBudgetSummary(
     periodEnd: formatUTCDate(period.end),
     totalDays,
     monthlyBudget,
+    savingsGoal,
     dailyBase,
     spentSoFar,
     incomeSoFar,
-    remainingMonthly: monthlyBudget - spentSoFar,
+    remainingMonthly: spendableBudget - spentSoFar,
     todayAllowance,
     spentToday,
     remainingToday: todayAllowance - spentToday,

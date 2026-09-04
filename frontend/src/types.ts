@@ -7,6 +7,7 @@ export interface User {
   name: string;
   cycleStartDay: number;
   currency: Currency;
+  savingsGoal: number;
 }
 
 export interface Category {
@@ -36,6 +37,7 @@ export interface BudgetSummary {
   periodEnd: string;
   totalDays: number;
   monthlyBudget: number;
+  savingsGoal: number;
   dailyBase: number;
   spentSoFar: number;
   incomeSoFar: number;
