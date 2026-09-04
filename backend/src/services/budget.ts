@@ -51,7 +51,6 @@ export async function getBudgetSummary(
     [userId]
   );
   const monthlyBudget = Number(categoryBudgetResult.rows[0]?.total ?? 0);
-  const dailyBase = totalDays > 0 ? monthlyBudget / totalDays : 0;
 
   const txResult = await pool.query<{ amount: string; date: string; type: "INCOME" | "EXPENSE" }>(
     `SELECT amount, date, type FROM transactions
@@ -88,6 +87,14 @@ export async function getBudgetSummary(
   } else {
     chainStart = clampedToday;
   }
+
+  // The daily rate is the full budget spread over the days actually left
+  // to distribute it across (from when tracking started through the end of
+  // the period), not the period's total length. Otherwise the skipped
+  // pre-tracking days would shrink every day's share while still leaving
+  // "remaining this month" claiming the full budget is reachable.
+  const chainDays = diffUTCDays(period.end, chainStart) + 1;
+  const dailyBase = chainDays > 0 ? monthlyBudget / chainDays : 0;
 
   const numDaysElapsed = diffUTCDays(clampedToday, chainStart) + 1;
   let carry = 0;
