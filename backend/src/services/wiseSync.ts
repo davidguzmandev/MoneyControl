@@ -2,7 +2,7 @@ import { pool } from "../db";
 import { decrypt } from "../lib/crypto";
 import { newId } from "../lib/id";
 import { formatUTCDate } from "../lib/utcDate";
-import { getStatement, WiseStatementTransaction } from "../lib/wiseClient";
+import { getRate, getStatement } from "../lib/wiseClient";
 
 interface WiseUserRow {
   wise_api_token_encrypted: string | null;
@@ -10,6 +10,7 @@ interface WiseUserRow {
   wise_balance_id: string | null;
   wise_currency: string | null;
   wise_last_synced_at: Date | null;
+  currency: string;
 }
 
 const SALARY_CATEGORY = "Salario";
@@ -58,15 +59,16 @@ export interface WiseSyncResult {
 
 /**
  * Pulls new Wise statement entries since the last sync and inserts them as
- * transactions. Credits land in the user's "Salario" category so they feed
- * the budget the same way any other income does; debits land in a
- * dedicated "Wise Gasto" category the user re-files from there. Safe to
+ * transactions, converted from the Wise balance's currency into the user's
+ * configured currency. Credits land in the user's "Salario" category so
+ * they feed the budget the same way any other income does; debits land in
+ * a dedicated "Wise Gasto" category the user re-files from there. Safe to
  * call repeatedly: duplicates are skipped via the unique
  * (user_id, external_source, external_id) index.
  */
 export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
   const userResult = await pool.query<WiseUserRow>(
-    `SELECT wise_api_token_encrypted, wise_profile_id, wise_balance_id, wise_currency, wise_last_synced_at
+    `SELECT wise_api_token_encrypted, wise_profile_id, wise_balance_id, wise_currency, wise_last_synced_at, currency
      FROM users WHERE id = $1`,
     [userId]
   );
@@ -81,14 +83,20 @@ export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
     ? new Date(user.wise_last_synced_at)
     : new Date(intervalEnd.getTime() - 90 * 24 * 60 * 60 * 1000);
 
+  const wiseCurrency = user.wise_currency ?? "USD";
   const statement = await getStatement(
     token,
     Number(user.wise_profile_id),
     Number(user.wise_balance_id),
-    user.wise_currency ?? "USD",
+    wiseCurrency,
     intervalStart,
     intervalEnd
   );
+
+  // Imported amounts are stored in the app's configured currency, matching
+  // every other transaction, so a change of the Wise balance's currency
+  // never shows up unconverted in the wrong unit.
+  const conversionRate = await getRate(token, wiseCurrency, user.currency);
 
   console.log(
     `Wise statement for user ${userId}: ${statement.transactions.length} transaction(s).`,
@@ -100,8 +108,9 @@ export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
   let imported = 0;
 
   for (const tx of statement.transactions) {
-    const amount = Math.abs(Number(tx.amount?.value));
-    if (!amount || amount <= 0) continue;
+    const rawAmount = Math.abs(Number(tx.amount?.value));
+    if (!rawAmount || rawAmount <= 0) continue;
+    const amount = conversionRate ? rawAmount * conversionRate : rawAmount;
 
     const type: "INCOME" | "EXPENSE" = tx.type === "CREDIT" ? "INCOME" : "EXPENSE";
     if (type === "INCOME" && !incomeCategoryId) {
