@@ -8,6 +8,8 @@ import { requireAuth } from "../middleware/requireAuth";
 import { DEFAULT_CATEGORIES } from "../lib/defaultCategories";
 import { newId } from "../lib/id";
 import { publicUser, UserRow } from "../lib/mappers";
+import { convertUserCurrency } from "../services/currencyConversion";
+import { FxError } from "../lib/fx";
 
 const router = Router();
 
@@ -124,6 +126,22 @@ router.patch("/me", requireAuth, async (req, res) => {
     return;
   }
 
+  if (parsed.data.currency !== undefined) {
+    const current = await pool.query<UserRow>("SELECT currency FROM users WHERE id = $1", [req.userId]);
+    const fromCurrency = current.rows[0]?.currency;
+    if (fromCurrency && fromCurrency !== parsed.data.currency) {
+      try {
+        await convertUserCurrency(req.userId!, fromCurrency, parsed.data.currency);
+      } catch (err) {
+        if (err instanceof FxError) {
+          res.status(502).json({ error: "No se pudo obtener la tasa de cambio. Intenta de nuevo en un momento." });
+          return;
+        }
+        throw err;
+      }
+    }
+  }
+
   const fields: string[] = [];
   const values: unknown[] = [];
   let idx = 1;
@@ -135,10 +153,6 @@ router.patch("/me", requireAuth, async (req, res) => {
   if (parsed.data.cycleStartDay !== undefined) {
     fields.push(`cycle_start_day = $${idx++}`);
     values.push(parsed.data.cycleStartDay);
-  }
-  if (parsed.data.currency !== undefined) {
-    fields.push(`currency = $${idx++}`);
-    values.push(parsed.data.currency);
   }
   if (parsed.data.savingsGoal !== undefined) {
     fields.push(`savings_goal = $${idx++}`);

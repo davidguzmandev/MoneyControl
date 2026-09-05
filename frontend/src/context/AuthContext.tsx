@@ -57,6 +57,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       queryClient.setQueryData(["me"], user);
       queryClient.invalidateQueries({ queryKey: ["budget"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
   });
 
