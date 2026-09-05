@@ -15,7 +15,9 @@ export function Layout() {
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
-          <span className="text-lg font-semibold tracking-tight">Money Control</span>
+          <a href="/app" className="text-lg font-semibold tracking-tight">
+            Money Control
+          </a>
           <div className="flex items-center gap-4">
             <span className="hidden text-sm text-slate-500 sm:inline">{user?.name}</span>
             <button

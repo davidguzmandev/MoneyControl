@@ -27,6 +27,8 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [rateNotice, setRateNotice] = useState<{ from: string; to: string; rate: number } | null>(null);
+  const [checkingRate, setCheckingRate] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -36,8 +38,7 @@ export function SettingsPage() {
     setCurrency(user.currency);
   }, [user]);
 
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
+  async function saveSettings() {
     setError(null);
     setSuccess(false);
     setLoading(true);
@@ -48,11 +49,35 @@ export function SettingsPage() {
         currency,
       });
       setSuccess(true);
+      setRateNotice(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "No se pudo guardar la configuración");
     } finally {
       setLoading(false);
     }
+  }
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    if (user && currency !== user.currency) {
+      setCheckingRate(true);
+      try {
+        const preview = await api.get<{ from: string; to: string; rate: number }>(
+          `/auth/currency-rate?to=${currency}`
+        );
+        setRateNotice(preview);
+      } catch (err) {
+        setError(err instanceof ApiError ? err.message : "No se pudo calcular la conversión");
+      } finally {
+        setCheckingRate(false);
+      }
+      return;
+    }
+
+    await saveSettings();
   }
 
   return (
@@ -123,11 +148,31 @@ export function SettingsPage() {
             del periodo, y lo que no gastes en un día se suma al siguiente.
           </div>
 
+          {rateNotice && (
+            <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
+              <p>
+                Vas a cambiar tu moneda de {rateNotice.from} a {rateNotice.to}. Todos tus movimientos,
+                presupuestos de categoría y meta de ahorro guardados se van a multiplicar por la tasa 1{" "}
+                {rateNotice.from} = {rateNotice.rate.toFixed(4)} {rateNotice.to}. Si tus montos ya estaban
+                pensados en {rateNotice.to} y solo quieres corregir la etiqueta, cancela y no cambies la
+                moneda.
+              </p>
+              <div className="flex gap-2">
+                <Button type="button" variant="secondary" onClick={() => setRateNotice(null)}>
+                  Cancelar
+                </Button>
+                <Button type="button" disabled={loading} onClick={() => saveSettings()}>
+                  {loading ? "Convirtiendo..." : "Confirmar conversión"}
+                </Button>
+              </div>
+            </div>
+          )}
+
           <ErrorText>{error}</ErrorText>
           {success && <p className="text-sm text-emerald-600">Guardado correctamente.</p>}
 
-          <Button type="submit" disabled={loading}>
-            {loading ? "Guardando..." : "Guardar cambios"}
+          <Button type="submit" disabled={loading || checkingRate || !!rateNotice}>
+            {checkingRate ? "Calculando..." : loading ? "Guardando..." : "Guardar cambios"}
           </Button>
         </form>
       </Card>

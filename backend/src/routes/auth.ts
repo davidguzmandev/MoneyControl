@@ -9,7 +9,7 @@ import { DEFAULT_CATEGORIES } from "../lib/defaultCategories";
 import { newId } from "../lib/id";
 import { publicUser, UserRow } from "../lib/mappers";
 import { convertUserCurrency } from "../services/currencyConversion";
-import { FxError } from "../lib/fx";
+import { FxError, getExchangeRate } from "../lib/fx";
 
 const router = Router();
 
@@ -110,6 +110,32 @@ router.get("/me", requireAuth, async (req, res) => {
     return;
   }
   res.json({ user: publicUser(userRow) });
+});
+
+router.get("/currency-rate", requireAuth, async (req, res) => {
+  const to = z.enum(["USD", "COP", "MXN", "CAD"]).safeParse(req.query.to);
+  if (!to.success) {
+    res.status(400).json({ error: "Moneda inválida" });
+    return;
+  }
+
+  const current = await pool.query<UserRow>("SELECT currency FROM users WHERE id = $1", [req.userId]);
+  const from = current.rows[0]?.currency;
+  if (!from) {
+    res.status(404).json({ error: "Usuario no encontrado" });
+    return;
+  }
+
+  try {
+    const rate = await getExchangeRate(from, to.data);
+    res.json({ from, to: to.data, rate });
+  } catch (err) {
+    if (err instanceof FxError) {
+      res.status(502).json({ error: "No se pudo obtener la tasa de cambio. Intenta de nuevo en un momento." });
+      return;
+    }
+    throw err;
+  }
 });
 
 const settingsSchema = z.object({
