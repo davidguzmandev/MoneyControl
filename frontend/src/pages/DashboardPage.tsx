@@ -90,7 +90,8 @@ export function DashboardPage() {
           />
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          Gastado hoy {formatMoney(spentToday, currency)} de {formatMoney(todayAllowance, currency)} asignados
+          Gastado hoy {formatMoney(spentToday, currency)} de {formatMoney(Math.max(todayAllowance, 0), currency)}{" "}
+          asignados
         </p>
       </Card>
 
@@ -107,7 +108,11 @@ export function DashboardPage() {
         </Card>
         <Card>
           <p className="text-xs text-slate-500">Restante del mes</p>
-          <p className="mt-1 text-lg font-semibold text-income">
+          <p
+            className={`mt-1 text-lg font-semibold ${
+              (budget?.remainingMonthly ?? 0) < 0 ? "text-expense" : "text-income"
+            }`}
+          >
             {formatMoney(budget?.remainingMonthly ?? 0, currency)}
           </p>
         </Card>
