@@ -23,12 +23,13 @@ interface UserBudgetRow {
 }
 
 /**
- * "Puedes gastar hoy" paces the money you've actually earned this period
- * (not the fixed category-budget target) evenly over the days since you
- * started tracking. Whatever isn't spent on a given day carries over in
- * full to the next day, and the next, compounding for as long as it goes
- * unspent — so it stays in sync with "Restante del mes" (income minus
- * expenses) instead of a smaller, separate category-budget ceiling.
+ * "Puedes gastar hoy" paces your income over the days left in the period.
+ * The daily rate is a fixed number that only gets recalculated when new
+ * income arrives — at that point, whatever you're currently carrying plus
+ * the new income is re-split evenly over the days remaining from that day
+ * through the end of the period. Between income events the rate stays
+ * constant, and every day's unspent (or overspent) amount carries over in
+ * full to the next day.
  */
 export async function getBudgetSummary(
   userId: string,
@@ -62,10 +63,12 @@ export async function getBudgetSummary(
 
   let incomeSoFar = 0;
   const spentByDay = new Map<string, number>();
+  const incomeByDay = new Map<string, number>();
   for (const tx of txResult.rows) {
     const amount = Number(tx.amount);
     if (tx.type === "INCOME") {
       incomeSoFar += amount;
+      incomeByDay.set(tx.date, (incomeByDay.get(tx.date) ?? 0) + amount);
     } else {
       spentByDay.set(tx.date, (spentByDay.get(tx.date) ?? 0) + amount);
     }
@@ -74,38 +77,23 @@ export async function getBudgetSummary(
   let spentSoFar = 0;
   for (const spent of spentByDay.values()) spentSoFar += spent;
 
-  // The carry chain starts on the first day the user actually logged
-  // something this period, not on the period's calendar start. Otherwise a
-  // user who only starts tracking (or only sets category budgets) well
-  // into the period would be credited a full daily share for every prior
-  // day as if it had gone unspent, producing a huge one-day windfall.
-  const earliestActivity =
-    txResult.rows.length > 0 ? txResult.rows.map((t) => t.date).sort()[0] : null;
-
-  let chainStart = period.start;
-  if (earliestActivity) {
-    const earliest = utcMidnight(earliestActivity);
-    if (earliest.getTime() > chainStart.getTime()) chainStart = earliest;
-  } else {
-    chainStart = clampedToday;
-  }
-
-  // The daily rate is the income earned so far spread over the days
-  // actually left to distribute it across (from when tracking started
-  // through the end of the period), not the period's total length.
-  // Otherwise the skipped pre-tracking days would shrink every day's share,
-  // and using the period's full length would keep counting income that
-  // hasn't been earned yet as if it were already spendable today.
-  const chainDays = diffUTCDays(period.end, chainStart) + 1;
-  const dailyBase = chainDays > 0 ? incomeSoFar / chainDays : 0;
-
-  const numDaysElapsed = diffUTCDays(clampedToday, chainStart) + 1;
+  const numDaysElapsed = diffUTCDays(clampedToday, period.start) + 1;
+  let dailyBase = 0;
   let carry = 0;
   let spentToday = 0;
-  let todayAllowance = dailyBase;
+  let todayAllowance = 0;
   for (let i = 0; i < numDaysElapsed; i++) {
-    const day = addUTCDays(chainStart, i);
+    const day = addUTCDays(period.start, i);
     const key = formatUTCDate(day);
+
+    const incomeToday = incomeByDay.get(key) ?? 0;
+    if (incomeToday > 0) {
+      const daysRemainingFromHere = diffUTCDays(period.end, day) + 1;
+      const pot = carry + incomeToday;
+      dailyBase = daysRemainingFromHere > 0 ? pot / daysRemainingFromHere : 0;
+      carry = 0;
+    }
+
     const spent = spentByDay.get(key) ?? 0;
     const allowance = dailyBase + carry;
     const leftover = allowance - spent;
