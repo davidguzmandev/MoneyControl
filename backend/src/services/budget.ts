@@ -122,7 +122,7 @@ export async function getBudgetSummary(
     dailyBase,
     spentSoFar,
     incomeSoFar,
-    remainingMonthly: monthlyBudget - spentSoFar,
+    remainingMonthly: incomeSoFar - spentSoFar,
     todayAllowance,
     spentToday,
     remainingToday: carry,
