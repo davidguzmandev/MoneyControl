@@ -23,10 +23,12 @@ interface UserBudgetRow {
 }
 
 /**
- * The daily spending value comes from what the user has assigned across
- * their expense categories, split evenly over the days in the period.
- * Whatever isn't spent on a given day carries over in full to the next
- * day, and the next, compounding for as long as it goes unspent.
+ * "Puedes gastar hoy" paces the money you've actually earned this period
+ * (not the fixed category-budget target) evenly over the days since you
+ * started tracking. Whatever isn't spent on a given day carries over in
+ * full to the next day, and the next, compounding for as long as it goes
+ * unspent — so it stays in sync with "Restante del mes" (income minus
+ * expenses) instead of a smaller, separate category-budget ceiling.
  */
 export async function getBudgetSummary(
   userId: string,
@@ -88,13 +90,14 @@ export async function getBudgetSummary(
     chainStart = clampedToday;
   }
 
-  // The daily rate is the full budget spread over the days actually left
-  // to distribute it across (from when tracking started through the end of
-  // the period), not the period's total length. Otherwise the skipped
-  // pre-tracking days would shrink every day's share while still leaving
-  // "remaining this month" claiming the full budget is reachable.
+  // The daily rate is the income earned so far spread over the days
+  // actually left to distribute it across (from when tracking started
+  // through the end of the period), not the period's total length.
+  // Otherwise the skipped pre-tracking days would shrink every day's share,
+  // and using the period's full length would keep counting income that
+  // hasn't been earned yet as if it were already spendable today.
   const chainDays = diffUTCDays(period.end, chainStart) + 1;
-  const dailyBase = chainDays > 0 ? monthlyBudget / chainDays : 0;
+  const dailyBase = chainDays > 0 ? incomeSoFar / chainDays : 0;
 
   const numDaysElapsed = diffUTCDays(clampedToday, chainStart) + 1;
   let carry = 0;
