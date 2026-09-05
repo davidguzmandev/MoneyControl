@@ -233,9 +233,9 @@ function WiseIntegrationCard() {
     <Card>
       <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Wise</h2>
       <p className="mt-1 text-xs text-slate-400">
-        Conecta tu cuenta de Wise para importar tus movimientos automáticamente cada 15 minutos. Se
-        guardan en categorías separadas ("Wise Ingreso" / "Wise Gasto") para que las reclasifiques si
-        quieres.
+        Conecta tu cuenta de Wise para importar tus movimientos automáticamente cada 15 minutos. Los
+        ingresos se guardan en tu categoría "Salario" (así alimentan tu presupuesto igual que un ingreso
+        manual) y los gastos en "Wise Gasto", para que los reclasifiques si quieres.
       </p>
 
       {status?.connected ? (

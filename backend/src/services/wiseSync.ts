@@ -12,10 +12,11 @@ interface WiseUserRow {
   wise_last_synced_at: Date | null;
 }
 
-const WISE_INCOME_CATEGORY = "Wise Ingreso";
+const SALARY_CATEGORY = "Salario";
+const WISE_INCOME_FALLBACK_CATEGORY = "Wise Ingreso";
 const WISE_EXPENSE_CATEGORY = "Wise Gasto";
 
-async function ensureWiseCategory(
+async function ensureCategory(
   userId: string,
   name: string,
   type: "INCOME" | "EXPENSE",
@@ -35,15 +36,32 @@ async function ensureWiseCategory(
   return id;
 }
 
+/**
+ * Wise income lands in the user's existing "Salario" category so it
+ * behaves like any other income already flowing into the budget
+ * calculations, rather than sitting in a separate "Wise" bucket. Falls
+ * back to a dedicated category only if the user has renamed/deleted
+ * their Salario category.
+ */
+async function resolveIncomeCategory(userId: string): Promise<string> {
+  const existing = await pool.query<{ id: string }>(
+    "SELECT id FROM categories WHERE user_id = $1 AND name = $2 AND type = 'INCOME'",
+    [userId, SALARY_CATEGORY]
+  );
+  if (existing.rows.length > 0) return existing.rows[0].id;
+  return ensureCategory(userId, WISE_INCOME_FALLBACK_CATEGORY, "INCOME", "#0ea5e9");
+}
+
 export interface WiseSyncResult {
   imported: number;
 }
 
 /**
  * Pulls new Wise statement entries since the last sync and inserts them as
- * transactions. Imported entries land in dedicated "Wise" categories so
- * they never get silently miscategorized; the user re-files them from
- * there. Safe to call repeatedly: duplicates are skipped via the unique
+ * transactions. Credits land in the user's "Salario" category so they feed
+ * the budget the same way any other income does; debits land in a
+ * dedicated "Wise Gasto" category the user re-files from there. Safe to
+ * call repeatedly: duplicates are skipped via the unique
  * (user_id, external_source, external_id) index.
  */
 export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
@@ -82,10 +100,10 @@ export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
 
     const type: "INCOME" | "EXPENSE" = tx.type === "CREDIT" ? "INCOME" : "EXPENSE";
     if (type === "INCOME" && !incomeCategoryId) {
-      incomeCategoryId = await ensureWiseCategory(userId, WISE_INCOME_CATEGORY, "INCOME", "#0ea5e9");
+      incomeCategoryId = await resolveIncomeCategory(userId);
     }
     if (type === "EXPENSE" && !expenseCategoryId) {
-      expenseCategoryId = await ensureWiseCategory(userId, WISE_EXPENSE_CATEGORY, "EXPENSE", "#64748b");
+      expenseCategoryId = await ensureCategory(userId, WISE_EXPENSE_CATEGORY, "EXPENSE", "#64748b");
     }
     const categoryId = type === "INCOME" ? incomeCategoryId! : expenseCategoryId!;
     const description = tx.details?.description ?? tx.details?.paymentReference ?? null;
