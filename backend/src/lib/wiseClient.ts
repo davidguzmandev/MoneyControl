@@ -7,7 +7,8 @@ async function wiseRequest<T>(token: string, path: string): Promise<T> {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!res.ok) {
-    throw new WiseApiError(`Wise API ${path} respondió ${res.status}`);
+    const body = await res.text().catch(() => "");
+    throw new WiseApiError(`Wise API ${path} respondió ${res.status}: ${body.slice(0, 500)}`);
   }
   return (await res.json()) as T;
 }
@@ -21,6 +22,7 @@ export interface WiseBalance {
   id: number;
   currency: string;
   type: string;
+  amount: { value: number; currency: string };
 }
 
 export interface WiseStatementTransaction {

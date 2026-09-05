@@ -28,41 +28,73 @@ router.get("/wise/status", async (req, res) => {
   });
 });
 
+async function resolveProfile(apiToken: string) {
+  const profiles = await getProfiles(apiToken);
+  const personalProfile = profiles.find((p) => p.type === "PERSONAL") ?? profiles[0];
+  if (!personalProfile) throw new Error("NO_PROFILE");
+  return personalProfile.id;
+}
+
+const balancesSchema = z.object({
+  apiToken: z.string().min(10),
+});
+
+router.post("/wise/balances", async (req, res) => {
+  const parsed = balancesSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Token inválido" });
+    return;
+  }
+  const { apiToken } = parsed.data;
+
+  try {
+    const profileId = await resolveProfile(apiToken);
+    const balances = await getBalances(apiToken, profileId);
+    res.json({
+      profileId,
+      balances: balances.map((b) => ({
+        id: b.id,
+        currency: b.currency,
+        amount: b.amount?.value ?? 0,
+      })),
+    });
+  } catch (err) {
+    if (err instanceof WiseApiError || (err instanceof Error && err.message === "NO_PROFILE")) {
+      console.error("Wise balances lookup failed:", err);
+      res.status(400).json({ error: "No se pudo validar el token con Wise. Revisa que sea correcto." });
+      return;
+    }
+    throw err;
+  }
+});
+
 const connectSchema = z.object({
   apiToken: z.string().min(10),
+  balanceId: z.number(),
 });
 
 router.post("/wise/connect", async (req, res) => {
   const parsed = connectSchema.safeParse(req.body);
   if (!parsed.success) {
-    res.status(400).json({ error: "Token inválido" });
+    res.status(400).json({ error: "Datos inválidos" });
     return;
   }
-
-  const { apiToken } = parsed.data;
+  const { apiToken, balanceId } = parsed.data;
 
   let profileId: number;
-  let balanceId: number;
   let currency: string;
   try {
-    const profiles = await getProfiles(apiToken);
-    const personalProfile = profiles.find((p) => p.type === "PERSONAL") ?? profiles[0];
-    if (!personalProfile) {
-      res.status(400).json({ error: "No se encontró un perfil de Wise para este token" });
-      return;
-    }
-    profileId = personalProfile.id;
-
+    profileId = await resolveProfile(apiToken);
     const balances = await getBalances(apiToken, profileId);
-    const balance = balances[0];
+    const balance = balances.find((b) => b.id === balanceId);
     if (!balance) {
-      res.status(400).json({ error: "No se encontró un balance en tu cuenta de Wise" });
+      res.status(400).json({ error: "Ese balance ya no está disponible en tu cuenta de Wise" });
       return;
     }
-    balanceId = balance.id;
     currency = balance.currency;
   } catch (err) {
     if (err instanceof WiseApiError) {
+      console.error("Wise connect failed:", err);
       res.status(400).json({ error: "No se pudo validar el token con Wise. Revisa que sea correcto." });
       return;
     }
@@ -77,13 +109,28 @@ router.post("/wise/connect", async (req, res) => {
     [encrypted, String(profileId), String(balanceId), currency, req.userId]
   );
 
-  const syncResult = await syncWiseForUser(req.userId!);
-  res.status(201).json({ connected: true, currency, imported: syncResult.imported });
+  try {
+    const syncResult = await syncWiseForUser(req.userId!);
+    res.status(201).json({ connected: true, currency, imported: syncResult.imported });
+  } catch (err) {
+    console.error("Initial Wise sync failed:", err);
+    res.status(201).json({
+      connected: true,
+      currency,
+      imported: 0,
+      warning: "Se conectó, pero la primera sincronización falló. Intenta 'Sincronizar ahora' en un momento.",
+    });
+  }
 });
 
 router.post("/wise/sync", async (req, res) => {
-  const result = await syncWiseForUser(req.userId!);
-  res.json(result);
+  try {
+    const result = await syncWiseForUser(req.userId!);
+    res.json(result);
+  } catch (err) {
+    console.error("Wise sync failed:", err);
+    res.status(502).json({ error: "No se pudo sincronizar con Wise en este momento." });
+  }
 });
 
 router.delete("/wise", async (req, res) => {

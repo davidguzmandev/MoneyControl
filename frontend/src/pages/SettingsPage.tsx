@@ -143,9 +143,17 @@ interface WiseStatus {
   lastSyncedAt: string | null;
 }
 
+interface WiseBalanceOption {
+  id: number;
+  currency: string;
+  amount: number;
+}
+
 function WiseIntegrationCard() {
   const queryClient = useQueryClient();
   const [token, setToken] = useState("");
+  const [balances, setBalances] = useState<WiseBalanceOption[] | null>(null);
+  const [selectedBalanceId, setSelectedBalanceId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -154,15 +162,33 @@ function WiseIntegrationCard() {
     queryFn: () => api.get<WiseStatus>("/integrations/wise/status"),
   });
 
-  const connectMutation = useMutation({
+  const balancesMutation = useMutation({
     mutationFn: (apiToken: string) =>
-      api.post<{ connected: boolean; currency: string; imported: number }>("/integrations/wise/connect", {
-        apiToken,
-      }),
+      api.post<{ balances: WiseBalanceOption[] }>("/integrations/wise/balances", { apiToken }),
     onSuccess: (data) => {
       setError(null);
+      if (data.balances.length === 0) {
+        setError("No se encontró ningún balance en tu cuenta de Wise");
+        return;
+      }
+      setBalances(data.balances);
+      setSelectedBalanceId(data.balances[0].id);
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo validar el token"),
+  });
+
+  const connectMutation = useMutation({
+    mutationFn: () =>
+      api.post<{ connected: boolean; currency: string; imported: number; warning?: string }>(
+        "/integrations/wise/connect",
+        { apiToken: token, balanceId: selectedBalanceId }
+      ),
+    onSuccess: (data) => {
+      setError(data.warning ?? null);
       setToken("");
-      setMessage(`Conectado. Se importaron ${data.imported} movimientos.`);
+      setBalances(null);
+      setSelectedBalanceId(null);
+      setMessage(`Conectado en ${data.currency}. Se importaron ${data.imported} movimientos.`);
       queryClient.invalidateQueries({ queryKey: ["integrations", "wise", "status"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["budget"] });
@@ -195,11 +221,12 @@ function WiseIntegrationCard() {
     onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo desconectar Wise"),
   });
 
-  function handleConnect(e: FormEvent) {
+  function handleValidate(e: FormEvent) {
     e.preventDefault();
     setMessage(null);
+    setError(null);
     if (!token.trim()) return;
-    connectMutation.mutate(token.trim());
+    balancesMutation.mutate(token.trim());
   }
 
   return (
@@ -238,8 +265,40 @@ function WiseIntegrationCard() {
             </Button>
           </div>
         </div>
+      ) : balances ? (
+        <div className="mt-4 space-y-3">
+          <div>
+            <Label htmlFor="wiseBalance">Balance a sincronizar</Label>
+            <Select
+              id="wiseBalance"
+              value={selectedBalanceId ?? ""}
+              onChange={(e) => setSelectedBalanceId(Number(e.target.value))}
+            >
+              {balances.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.currency} ({b.amount.toFixed(2)})
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setBalances(null);
+                setSelectedBalanceId(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button type="button" disabled={connectMutation.isPending} onClick={() => connectMutation.mutate()}>
+              {connectMutation.isPending ? "Conectando..." : "Confirmar y conectar"}
+            </Button>
+          </div>
+        </div>
       ) : (
-        <form onSubmit={handleConnect} className="mt-4 flex flex-wrap items-end gap-2">
+        <form onSubmit={handleValidate} className="mt-4 flex flex-wrap items-end gap-2">
           <div className="min-w-[220px] flex-1">
             <Label htmlFor="wiseToken">Token de API de Wise</Label>
             <Input
@@ -250,8 +309,8 @@ function WiseIntegrationCard() {
               placeholder="Pega tu token aquí"
             />
           </div>
-          <Button type="submit" disabled={connectMutation.isPending}>
-            {connectMutation.isPending ? "Conectando..." : "Conectar"}
+          <Button type="submit" disabled={balancesMutation.isPending}>
+            {balancesMutation.isPending ? "Validando..." : "Continuar"}
           </Button>
         </form>
       )}
