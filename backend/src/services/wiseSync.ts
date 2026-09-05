@@ -90,13 +90,18 @@ export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
     intervalEnd
   );
 
+  console.log(
+    `Wise statement for user ${userId}: ${statement.transactions.length} transaction(s).`,
+    statement.transactions[0] ? JSON.stringify(statement.transactions[0]) : "(none)"
+  );
+
   let incomeCategoryId: string | null = null;
   let expenseCategoryId: string | null = null;
   let imported = 0;
 
   for (const tx of statement.transactions) {
-    const amount = Math.abs(tx.amount.value);
-    if (amount <= 0) continue;
+    const amount = Math.abs(Number(tx.amount?.value));
+    if (!amount || amount <= 0) continue;
 
     const type: "INCOME" | "EXPENSE" = tx.type === "CREDIT" ? "INCOME" : "EXPENSE";
     if (type === "INCOME" && !incomeCategoryId) {

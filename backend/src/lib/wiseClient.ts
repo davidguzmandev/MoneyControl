@@ -61,6 +61,6 @@ export async function getStatement(
   });
   return wiseRequest<WiseStatement>(
     token,
-    `/v3/profiles/${profileId}/balance-statements/${balanceId}/statement.json?${params.toString()}`
+    `/v1/profiles/${profileId}/balance-statements/${balanceId}/statement.json?${params.toString()}`
   );
 }
