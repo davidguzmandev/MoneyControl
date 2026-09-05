@@ -23,13 +23,15 @@ interface UserBudgetRow {
 }
 
 /**
- * "Puedes gastar hoy" paces your income over the days left in the period.
- * The daily rate is a fixed number that only gets recalculated when new
- * income arrives — at that point, whatever you're currently carrying plus
- * the new income is re-split evenly over the days remaining from that day
- * through the end of the period. Between income events the rate stays
- * constant, and every day's unspent (or overspent) amount carries over in
- * full to the next day.
+ * "Puedes gastar hoy" paces the manually-set category budget (not income)
+ * over the days left in the period. The daily rate is a fixed number that
+ * only gets recalculated when new income arrives — at that point it's the
+ * current category-budget total split evenly over the days remaining from
+ * that day through the end of the period — or when the user edits a
+ * category budget directly. Between those events the rate stays constant,
+ * and every day's unspent (or overspent) amount carries over in full to
+ * the next day, on top of whatever the current rate is. "Restante del mes"
+ * is a separate, simple running total of income minus expenses.
  */
 export async function getBudgetSummary(
   userId: string,
@@ -89,9 +91,7 @@ export async function getBudgetSummary(
     const incomeToday = incomeByDay.get(key) ?? 0;
     if (incomeToday > 0) {
       const daysRemainingFromHere = diffUTCDays(period.end, day) + 1;
-      const pot = carry + incomeToday;
-      dailyBase = daysRemainingFromHere > 0 ? pot / daysRemainingFromHere : 0;
-      carry = 0;
+      dailyBase = daysRemainingFromHere > 0 ? monthlyBudget / daysRemainingFromHere : 0;
     }
 
     const spent = spentByDay.get(key) ?? 0;
