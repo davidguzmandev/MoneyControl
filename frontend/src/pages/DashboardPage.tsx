@@ -81,7 +81,7 @@ export function DashboardPage() {
       <Card className="text-center">
         <p className="text-sm text-slate-500">Puedes gastar hoy</p>
         <p className={`my-2 text-4xl font-semibold tracking-tight ${overBudget ? "text-expense" : ""}`}>
-          {formatMoney(remainingToday, currency)}
+          {formatMoney(Math.max(remainingToday, 0), currency)}
         </p>
         <div className="mx-auto h-2 w-full max-w-sm overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
           <div

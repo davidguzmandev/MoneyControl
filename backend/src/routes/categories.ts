@@ -117,6 +117,17 @@ router.patch("/:id", async (req, res) => {
     return;
   }
 
+  if (parsed.data.name !== undefined && parsed.data.name !== existing.rows[0].name) {
+    const duplicate = await pool.query(
+      "SELECT id FROM categories WHERE user_id = $1 AND name = $2 AND id != $3",
+      [req.userId, parsed.data.name, req.params.id]
+    );
+    if (duplicate.rows.length > 0) {
+      res.status(409).json({ error: "Ya existe una categoría con ese nombre" });
+      return;
+    }
+  }
+
   if (existing.rows[0].type === "EXPENSE" && parsed.data.monthlyBudget) {
     const budgetError = await assertBudgetWithinIncome(
       req.userId!,

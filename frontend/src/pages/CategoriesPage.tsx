@@ -5,6 +5,7 @@ import { api, ApiError } from "../lib/api";
 import type { BudgetSummary, Category, CategoryStat, Currency, TransactionType } from "../types";
 import { formatMoney, todayISODate } from "../lib/format";
 import { Button, Card, ErrorText, Input, Label } from "../components/ui";
+import { Modal } from "../components/Modal";
 import { useAuth } from "../context/AuthContext";
 
 const COLOR_PALETTE = [
@@ -54,6 +55,7 @@ export function CategoriesPage() {
   const [color, setColor] = useState(COLOR_PALETTE[0]);
   const [type, setType] = useState<TransactionType>("EXPENSE");
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Category | null>(null);
 
   const createMutation = useMutation({
     mutationFn: () => api.post<{ category: Category }>("/categories", { name, color, type }),
@@ -80,6 +82,17 @@ export function CategoriesPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["budget"] });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, name, color }: { id: string; name: string; color: string }) =>
+      api.patch<{ category: Category }>(`/categories/${id}`, { name, color }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
+      queryClient.invalidateQueries({ queryKey: ["transactions"] });
+      queryClient.invalidateQueries({ queryKey: ["stats"] });
+      setEditing(null);
     },
   });
 
@@ -174,15 +187,23 @@ export function CategoriesPage() {
                   <span className="h-3 w-3 rounded-full" style={{ backgroundColor: category.color }} />
                   <span className="text-sm font-medium">{category.name}</span>
                 </div>
-                <button
-                  onClick={() => {
-                    setError(null);
-                    deleteMutation.mutate(category.id);
-                  }}
-                  className="text-xs text-slate-400 transition hover:text-red-600"
-                >
-                  Eliminar
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setEditing(category)}
+                    className="text-xs text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
+                  >
+                    Editar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setError(null);
+                      deleteMutation.mutate(category.id);
+                    }}
+                    className="text-xs text-slate-400 transition hover:text-red-600"
+                  >
+                    Eliminar
+                  </button>
+                </div>
               </li>
             ))}
             {incomeCategories.length === 0 && (
@@ -200,6 +221,7 @@ export function CategoriesPage() {
                 category={category}
                 spent={spentMap.get(category.id) ?? 0}
                 currency={currency}
+                onEdit={() => setEditing(category)}
                 onDelete={() => {
                   setError(null);
                   deleteMutation.mutate(category.id);
@@ -215,7 +237,81 @@ export function CategoriesPage() {
           </ul>
         </Card>
       </div>
+
+      <Modal open={!!editing} onClose={() => setEditing(null)} title="Editar categoría">
+        {editing && (
+          <CategoryEditForm
+            category={editing}
+            onSubmit={(vars) => updateMutation.mutateAsync(vars)}
+            onCancel={() => setEditing(null)}
+          />
+        )}
+      </Modal>
     </div>
+  );
+}
+
+function CategoryEditForm({
+  category,
+  onSubmit,
+  onCancel,
+}: {
+  category: Category;
+  onSubmit: (vars: { id: string; name: string; color: string }) => Promise<unknown>;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(category.name);
+  const [color, setColor] = useState(category.color);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setError(null);
+    setLoading(true);
+    try {
+      await onSubmit({ id: category.id, name: name.trim(), color });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo guardar la categoría");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="editCategoryName">Nombre</Label>
+        <Input id="editCategoryName" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div>
+        <Label>Color</Label>
+        <div className="flex flex-wrap gap-1.5">
+          {COLOR_PALETTE.map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setColor(c)}
+              className={`h-7 w-7 rounded-full ring-offset-2 transition ${
+                color === c ? "ring-2 ring-slate-900 dark:ring-slate-100" : ""
+              }`}
+              style={{ backgroundColor: c }}
+              aria-label={c}
+            />
+          ))}
+        </div>
+      </div>
+      <ErrorText>{error}</ErrorText>
+      <div className="flex justify-end gap-2 pt-1">
+        <Button type="button" variant="secondary" onClick={onCancel}>
+          Cancelar
+        </Button>
+        <Button type="submit" disabled={loading}>
+          {loading ? "Guardando..." : "Guardar cambios"}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -223,12 +319,14 @@ function ExpenseCategoryRow({
   category,
   spent,
   currency,
+  onEdit,
   onDelete,
   onSaveBudget,
 }: {
   category: Category;
   spent: number;
   currency: Currency;
+  onEdit: () => void;
   onDelete: () => void;
   onSaveBudget: (monthlyBudget: number | null) => Promise<unknown>;
 }) {
@@ -264,9 +362,17 @@ function ExpenseCategoryRow({
           <span className="h-3 w-3 rounded-full" style={{ backgroundColor: category.color }} />
           <span className="text-sm font-medium">{category.name}</span>
         </div>
-        <button onClick={onDelete} className="text-xs text-slate-400 transition hover:text-red-600">
-          Eliminar
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onEdit}
+            className="text-xs text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
+          >
+            Editar
+          </button>
+          <button onClick={onDelete} className="text-xs text-slate-400 transition hover:text-red-600">
+            Eliminar
+          </button>
+        </div>
       </div>
       <div className="mt-2 flex items-center gap-2 pl-6">
         <span className="text-xs text-slate-400">Presupuesto:</span>
