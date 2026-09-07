@@ -11,7 +11,9 @@ interface AuthContextValue {
   register: (email: string, password: string, name: string) => Promise<void>;
   logout: () => Promise<void>;
   updateSettings: (
-    data: Partial<Pick<User, "name" | "cycleStartDay" | "currency" | "savingsGoal" | "lowBalanceAlert">>
+    data: Partial<
+      Pick<User, "name" | "cycleStartDay" | "currency" | "savingsGoal" | "lowBalanceAlert" | "balanceSince">
+    >
   ) => Promise<void>;
 }
 
@@ -54,7 +56,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const settingsMutation = useMutation({
     mutationFn: (
-      data: Partial<Pick<User, "name" | "cycleStartDay" | "currency" | "savingsGoal" | "lowBalanceAlert">>
+      data: Partial<
+        Pick<User, "name" | "cycleStartDay" | "currency" | "savingsGoal" | "lowBalanceAlert" | "balanceSince">
+      >
     ) => api.patch<{ user: User }>("/auth/me", data),
     onSuccess: ({ user }) => {
       queryClient.setQueryData(["me"], user);

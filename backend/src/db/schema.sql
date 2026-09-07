@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS users (
   wise_currency TEXT,
   wise_last_synced_at TIMESTAMPTZ,
   low_balance_alert NUMERIC(12, 2),
+  balance_since DATE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -26,6 +27,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS wise_balance_id TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS wise_currency TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS wise_last_synced_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS low_balance_alert NUMERIC(12, 2);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_since DATE;
 
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY,

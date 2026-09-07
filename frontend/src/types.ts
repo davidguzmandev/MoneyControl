@@ -9,6 +9,7 @@ export interface User {
   currency: Currency;
   savingsGoal: number;
   lowBalanceAlert: number | null;
+  balanceSince: string | null;
 }
 
 export interface Category {

@@ -144,6 +144,11 @@ const settingsSchema = z.object({
   currency: z.enum(["USD", "COP", "MXN", "CAD"]).optional(),
   savingsGoal: z.number().min(0).optional(),
   lowBalanceAlert: z.number().min(0).nullable().optional(),
+  balanceSince: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .nullable()
+    .optional(),
 });
 
 router.patch("/me", requireAuth, async (req, res) => {
@@ -188,6 +193,10 @@ router.patch("/me", requireAuth, async (req, res) => {
   if (parsed.data.lowBalanceAlert !== undefined) {
     fields.push(`low_balance_alert = $${idx++}`);
     values.push(parsed.data.lowBalanceAlert);
+  }
+  if (parsed.data.balanceSince !== undefined) {
+    fields.push(`balance_since = $${idx++}`);
+    values.push(parsed.data.balanceSince);
   }
 
   if (fields.length === 0) {

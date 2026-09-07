@@ -179,6 +179,8 @@ export function SettingsPage() {
 
       <LowBalanceAlertCard />
 
+      <BalanceSinceCard />
+
       <WiseIntegrationCard />
     </div>
   );
@@ -233,6 +235,63 @@ function LowBalanceAlertCard() {
             min={0}
             step="0.01"
             placeholder="Sin aviso"
+            value={value}
+            disabled={saving}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setSuccess(false);
+            }}
+          />
+        </div>
+        <Button type="submit" variant="secondary" disabled={saving}>
+          {saving ? "Guardando..." : "Guardar"}
+        </Button>
+      </form>
+      <ErrorText>{error}</ErrorText>
+      {success && <p className="mt-2 text-xs text-emerald-600">Guardado correctamente.</p>}
+    </Card>
+  );
+}
+
+function BalanceSinceCard() {
+  const { user, updateSettings } = useAuth();
+  const [value, setValue] = useState(user?.balanceSince ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setValue(user?.balanceSince ?? "");
+  }, [user?.balanceSince]);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+    setSaving(true);
+    try {
+      await updateSettings({ balanceSince: value.trim() === "" ? null : value });
+      setSuccess(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo guardar la fecha");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Saldo acumulado</h2>
+      <p className="mt-1 text-xs text-slate-400">
+        "Restante del mes" suma tus ingresos y gastos desde esta fecha en adelante, sin reiniciarse en
+        cada periodo. Déjalo vacío para contar toda tu historia de movimientos.
+      </p>
+      <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap items-end gap-2">
+        <div className="w-44">
+          <Label htmlFor="balanceSince">Contar desde</Label>
+          <Input
+            id="balanceSince"
+            type="date"
             value={value}
             disabled={saving}
             onChange={(e) => {

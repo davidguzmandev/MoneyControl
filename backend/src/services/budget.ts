@@ -20,6 +20,7 @@ export interface BudgetSummary {
 interface UserBudgetRow {
   cycle_start_day: number;
   savings_goal: string;
+  balance_since: string | null;
 }
 
 /**
@@ -31,17 +32,18 @@ interface UserBudgetRow {
  * category budget directly. Between those events the rate stays constant,
  * and every day's unspent (or overspent) amount carries over in full to
  * the next day, on top of whatever the current rate is. "Restante del mes"
- * is a lifetime running balance (all income ever logged minus all expenses
- * ever logged) — it carries over across periods instead of resetting when
- * a new period starts, since the money itself doesn't disappear just
- * because the calendar rolled over.
+ * is a running balance (income minus expenses, from the user's configured
+ * "balanceSince" date onward, or from the beginning if unset) — it carries
+ * over across periods instead of resetting when a new period starts, since
+ * the money itself doesn't disappear just because the calendar rolled
+ * over.
  */
 export async function getBudgetSummary(
   userId: string,
   referenceDate: Date = new Date()
 ): Promise<BudgetSummary> {
   const userResult = await pool.query<UserBudgetRow>(
-    "SELECT cycle_start_day, savings_goal FROM users WHERE id = $1",
+    "SELECT cycle_start_day, savings_goal, balance_since FROM users WHERE id = $1",
     [userId]
   );
   const user = userResult.rows[0];
@@ -83,8 +85,10 @@ export async function getBudgetSummary(
   for (const spent of spentByDay.values()) spentSoFar += spent;
 
   const lifetimeResult = await pool.query<{ type: "INCOME" | "EXPENSE"; total: string }>(
-    `SELECT type, SUM(amount) as total FROM transactions WHERE user_id = $1 AND date <= $2 GROUP BY type`,
-    [userId, todayKey]
+    `SELECT type, SUM(amount) as total FROM transactions
+     WHERE user_id = $1 AND date <= $2 AND ($3::date IS NULL OR date >= $3)
+     GROUP BY type`,
+    [userId, todayKey, user.balance_since]
   );
   let lifetimeIncome = 0;
   let lifetimeExpense = 0;
