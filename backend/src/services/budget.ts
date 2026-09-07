@@ -31,7 +31,10 @@ interface UserBudgetRow {
  * category budget directly. Between those events the rate stays constant,
  * and every day's unspent (or overspent) amount carries over in full to
  * the next day, on top of whatever the current rate is. "Restante del mes"
- * is a separate, simple running total of income minus expenses.
+ * is a lifetime running balance (all income ever logged minus all expenses
+ * ever logged) — it carries over across periods instead of resetting when
+ * a new period starts, since the money itself doesn't disappear just
+ * because the calendar rolled over.
  */
 export async function getBudgetSummary(
   userId: string,
@@ -79,6 +82,17 @@ export async function getBudgetSummary(
   let spentSoFar = 0;
   for (const spent of spentByDay.values()) spentSoFar += spent;
 
+  const lifetimeResult = await pool.query<{ type: "INCOME" | "EXPENSE"; total: string }>(
+    `SELECT type, SUM(amount) as total FROM transactions WHERE user_id = $1 AND date <= $2 GROUP BY type`,
+    [userId, todayKey]
+  );
+  let lifetimeIncome = 0;
+  let lifetimeExpense = 0;
+  for (const row of lifetimeResult.rows) {
+    if (row.type === "INCOME") lifetimeIncome = Number(row.total);
+    else lifetimeExpense = Number(row.total);
+  }
+
   const numDaysElapsed = diffUTCDays(clampedToday, period.start) + 1;
   let dailyBase = 0;
   let carry = 0;
@@ -113,7 +127,7 @@ export async function getBudgetSummary(
     dailyBase,
     spentSoFar,
     incomeSoFar,
-    remainingMonthly: incomeSoFar - spentSoFar,
+    remainingMonthly: lifetimeIncome - lifetimeExpense,
     todayAllowance,
     spentToday,
     remainingToday: carry,

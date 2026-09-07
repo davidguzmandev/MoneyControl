@@ -110,7 +110,13 @@ export function DashboardPage() {
         </Card>
         <Card>
           <p className="text-xs text-slate-500">Restante del mes</p>
-          <p className="mt-1 text-lg font-semibold">{formatMoney(budget?.remainingMonthly ?? 0, currency)}</p>
+          <p
+            className={`mt-1 text-lg font-semibold ${
+              (budget?.remainingMonthly ?? 0) < 0 ? "text-expense" : "text-income"
+            }`}
+          >
+            {formatMoney(budget?.remainingMonthly ?? 0, currency)}
+          </p>
         </Card>
       </div>
 
