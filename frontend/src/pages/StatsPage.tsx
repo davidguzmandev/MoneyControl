@@ -1,84 +1,18 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Bar,
-  BarChart,
-  CartesianGrid,
-  Cell,
-  Legend,
-  Pie,
-  PieChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { api } from "../lib/api";
-import type { BudgetSummary, Category, CategoryStat, Currency, Transaction, TimelinePoint } from "../types";
+import type { BudgetSummary, Category, CategoryStat, Transaction, TimelinePoint } from "../types";
 import { formatDate, formatMoney, todayISODate } from "../lib/format";
 import { Button, Card, Select } from "../components/ui";
 import { Modal } from "../components/Modal";
+import { CategoryPieCard } from "../components/CategoryPieCard";
 import { TransactionForm } from "../components/TransactionForm";
 import type { TransactionFormValues } from "../components/TransactionForm";
 import { useAuth } from "../context/AuthContext";
 import { useLanguage } from "../context/LanguageContext";
 
 type RangeOption = "period" | "30" | "90" | "all";
-
-function CategoryPieCard({
-  title,
-  data,
-  emptyLabel,
-  currency,
-}: {
-  title: string;
-  data: CategoryStat[] | undefined;
-  emptyLabel: string;
-  currency: Currency;
-}) {
-  const total = data?.reduce((sum, c) => sum + c.total, 0) ?? 0;
-
-  return (
-    <Card>
-      <h2 className="mb-3 text-sm font-semibold text-slate-500">{title}</h2>
-      {data && data.length > 0 ? (
-        <div className="flex flex-col items-center gap-4 sm:flex-row">
-          <ResponsiveContainer width="100%" height={220}>
-            <PieChart>
-              <Pie data={data} dataKey="total" nameKey="name" innerRadius={55} outerRadius={90} isAnimationActive={false}>
-                {data.map((c) => (
-                  <Cell key={c.categoryId} fill={c.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(value) => formatMoney(Number(value), currency)} />
-            </PieChart>
-          </ResponsiveContainer>
-          <ul className="w-full space-y-1.5 text-sm">
-            {data
-              .slice()
-              .sort((a, b) => b.total - a.total)
-              .map((c) => (
-                <li key={c.categoryId} className="flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-                    {c.name}
-                  </span>
-                  <span className="text-slate-500">
-                    {formatMoney(c.total, currency)}{" "}
-                    <span className="text-xs text-slate-400">
-                      ({total ? Math.round((c.total / total) * 100) : 0}%)
-                    </span>
-                  </span>
-                </li>
-              ))}
-          </ul>
-        </div>
-      ) : (
-        <p className="py-10 text-center text-sm text-slate-400">{emptyLabel}</p>
-      )}
-    </Card>
-  );
-}
 
 export function StatsPage() {
   const { user } = useAuth();
@@ -223,36 +157,58 @@ export function StatsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <CategoryPieCard
-          title={t("stats.incomeByCategory")}
-          data={incomeByCategory}
-          emptyLabel={t("stats.noIncomeInRange")}
-          currency={currency}
-        />
-        <CategoryPieCard
-          title={t("stats.expenseByCategory")}
-          data={expenseByCategory}
-          emptyLabel={t("stats.noExpenseInRange")}
-          currency={currency}
-        />
+        <Card>
+          <h2 className="mb-3 text-sm font-semibold text-slate-500">{t("stats.incomeByCategory")}</h2>
+          <CategoryPieCard data={incomeByCategory} emptyLabel={t("stats.noIncomeInRange")} currency={currency} />
+        </Card>
+        <Card>
+          <h2 className="mb-3 text-sm font-semibold text-slate-500">{t("stats.expenseByCategory")}</h2>
+          <CategoryPieCard data={expenseByCategory} emptyLabel={t("stats.noExpenseInRange")} currency={currency} />
+        </Card>
       </div>
 
       <Card>
         <h2 className="mb-3 text-sm font-semibold text-slate-500">{t("stats.incomeVsExpense")}</h2>
         {timeline && timeline.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={timeline}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
-              <XAxis dataKey="date" tickFormatter={(d) => formatDate(d, language)} fontSize={11} />
-              <YAxis fontSize={11} />
+            <AreaChart data={timeline}>
+              <defs>
+                <linearGradient id="incomeFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#16a34a" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#16a34a" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="expenseFill" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#dc2626" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="#dc2626" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-slate-200 dark:stroke-slate-800" />
+              <XAxis dataKey="date" tickFormatter={(d) => formatDate(d, language)} fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis fontSize={11} tickLine={false} axisLine={false} width={40} />
               <Tooltip
                 labelFormatter={(d) => formatDate(String(d), language)}
                 formatter={(v) => formatMoney(Number(v), currency)}
               />
               <Legend />
-              <Bar dataKey="income" name={t("common.incomePlural")} fill="#16a34a" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" name={t("categories.expenses")} fill="#dc2626" radius={[4, 4, 0, 0]} />
-            </BarChart>
+              <Area
+                type="monotone"
+                dataKey="income"
+                name={t("common.incomePlural")}
+                stroke="#16a34a"
+                strokeWidth={2}
+                fill="url(#incomeFill)"
+                isAnimationActive={false}
+              />
+              <Area
+                type="monotone"
+                dataKey="expense"
+                name={t("categories.expenses")}
+                stroke="#dc2626"
+                strokeWidth={2}
+                fill="url(#expenseFill)"
+                isAnimationActive={false}
+              />
+            </AreaChart>
           </ResponsiveContainer>
         ) : (
           <p className="py-10 text-center text-sm text-slate-400">{t("stats.noTransactionsInRange")}</p>
