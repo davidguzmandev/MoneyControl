@@ -372,14 +372,19 @@ function WiseIntegrationCard() {
   });
 
   const syncMutation = useMutation({
-    mutationFn: () => api.post<{ imported: number }>("/integrations/wise/sync"),
+    mutationFn: () => api.post<{ imported: number; recategorized: number }>("/integrations/wise/sync"),
     onSuccess: (data) => {
       setError(null);
-      setMessage(`Sincronizado. Se importaron ${data.imported} movimientos nuevos.`);
+      const parts = [`Se importaron ${data.imported} movimientos nuevos.`];
+      if (data.recategorized > 0) {
+        parts.push(`Se corrigió la categoría de ${data.recategorized} movimientos ya existentes.`);
+      }
+      setMessage(`Sincronizado. ${parts.join(" ")}`);
       queryClient.invalidateQueries({ queryKey: ["integrations", "wise", "status"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["budget"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
+      queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
     onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo sincronizar con Wise"),
   });

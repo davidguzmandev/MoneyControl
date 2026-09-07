@@ -125,7 +125,7 @@ router.post("/wise/connect", async (req, res) => {
 
 router.post("/wise/sync", async (req, res) => {
   try {
-    const result = await syncWiseForUser(req.userId!);
+    const result = await syncWiseForUser(req.userId!, { fullResync: true });
     res.json(result);
   } catch (err) {
     console.error("Wise sync failed:", err);

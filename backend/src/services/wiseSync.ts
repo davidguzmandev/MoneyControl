@@ -89,6 +89,7 @@ async function resolveExpenseCategory(
 
 export interface WiseSyncResult {
   imported: number;
+  recategorized: number;
 }
 
 /**
@@ -102,7 +103,10 @@ export interface WiseSyncResult {
  * repeatedly: duplicates are skipped via the unique
  * (user_id, external_source, external_id) index.
  */
-export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
+export async function syncWiseForUser(
+  userId: string,
+  options: { fullResync?: boolean } = {}
+): Promise<WiseSyncResult> {
   const userResult = await pool.query<WiseUserRow>(
     `SELECT wise_api_token_encrypted, wise_profile_id, wise_balance_id, wise_currency, wise_last_synced_at, currency
      FROM users WHERE id = $1`,
@@ -110,14 +114,21 @@ export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
   );
   const user = userResult.rows[0];
   if (!user?.wise_api_token_encrypted || !user.wise_profile_id || !user.wise_balance_id) {
-    return { imported: 0 };
+    return { imported: 0, recategorized: 0 };
   }
 
   const token = decrypt(user.wise_api_token_encrypted);
   const intervalEnd = new Date();
-  const intervalStart = user.wise_last_synced_at
-    ? new Date(user.wise_last_synced_at)
-    : new Date(intervalEnd.getTime() - 90 * 24 * 60 * 60 * 1000);
+  // A full resync (the manual "Sincronizar ahora" button) re-pulls the
+  // last 90 days instead of just what's new since the last sync, so it
+  // also re-checks recent transactions still sitting in "Wise Gasto"
+  // against the current category mapping and moves them if it now
+  // resolves somewhere better. The background timer stays incremental to
+  // avoid hammering the Wise API every 15 minutes.
+  const intervalStart =
+    !options.fullResync && user.wise_last_synced_at
+      ? new Date(user.wise_last_synced_at)
+      : new Date(intervalEnd.getTime() - 90 * 24 * 60 * 60 * 1000);
 
   const wiseCurrency = user.wise_currency ?? "USD";
   const statement = await getStatement(
@@ -141,7 +152,9 @@ export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
 
   let incomeCategoryId: string | null = null;
   const expenseCategoryCache = new Map<string, string>();
+  const wiseGastoCategoryId = await ensureCategory(userId, WISE_EXPENSE_CATEGORY, "EXPENSE", "#64748b");
   let imported = 0;
+  let recategorized = 0;
 
   for (const tx of statement.transactions) {
     const rawAmount = Math.abs(Number(tx.amount?.value));
@@ -159,10 +172,18 @@ export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
     }
     const description = tx.details?.description ?? tx.details?.paymentReference ?? null;
 
-    const result = await pool.query(
+    // ON CONFLICT (an already-imported transaction) also re-checks its
+    // category: if it's still sitting in the generic "Wise Gasto" bucket
+    // and this pass resolved a better match (e.g. the merchant-category
+    // mapping was added after it was first imported), it gets moved.
+    // Anything the user has since re-filed elsewhere is left alone.
+    const result = await pool.query<{ inserted: boolean }>(
       `INSERT INTO transactions (id, user_id, category_id, type, amount, description, date, external_source, external_id)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'WISE', $8)
-       ON CONFLICT (user_id, external_source, external_id) WHERE external_source IS NOT NULL DO NOTHING`,
+       ON CONFLICT (user_id, external_source, external_id) WHERE external_source IS NOT NULL
+       DO UPDATE SET category_id = EXCLUDED.category_id
+       WHERE transactions.category_id = $9 AND EXCLUDED.category_id != $9
+       RETURNING (xmax = 0) AS inserted`,
       [
         newId(),
         userId,
@@ -172,14 +193,16 @@ export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
         description,
         formatUTCDate(new Date(tx.date)),
         tx.referenceNumber,
+        wiseGastoCategoryId,
       ]
     );
-    imported += result.rowCount ?? 0;
+    if (result.rows[0]?.inserted) imported++;
+    else if (result.rowCount) recategorized++;
   }
 
   await pool.query("UPDATE users SET wise_last_synced_at = $1 WHERE id = $2", [intervalEnd, userId]);
 
-  return { imported };
+  return { imported, recategorized };
 }
 
 export async function syncWiseForAllUsers(): Promise<void> {
