@@ -8,6 +8,7 @@ export interface User {
   cycleStartDay: number;
   currency: Currency;
   savingsGoal: number;
+  lowBalanceAlert: number | null;
 }
 
 export interface Category {

@@ -7,6 +7,7 @@ export interface UserRow {
   monthly_budget: string;
   currency: "USD" | "COP" | "MXN" | "CAD";
   savings_goal: string;
+  low_balance_alert: string | null;
   created_at: Date;
 }
 
@@ -39,6 +40,7 @@ export function publicUser(row: UserRow) {
     cycleStartDay: row.cycle_start_day,
     currency: row.currency,
     savingsGoal: Number(row.savings_goal),
+    lowBalanceAlert: row.low_balance_alert === null ? null : Number(row.low_balance_alert),
   };
 }
 

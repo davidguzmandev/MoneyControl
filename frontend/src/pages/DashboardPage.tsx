@@ -6,6 +6,7 @@ import type { BudgetSummary, Category, Currency, Transaction } from "../types";
 import { formatDate, formatMoney, todayISODate } from "../lib/format";
 import { Button, Card, Input, Label } from "../components/ui";
 import { Modal } from "../components/Modal";
+import { BudgetAlerts } from "../components/BudgetAlerts";
 import { TransactionForm } from "../components/TransactionForm";
 import type { TransactionFormValues } from "../components/TransactionForm";
 import { useAuth } from "../context/AuthContext";
@@ -62,7 +63,6 @@ export function DashboardPage() {
   const spentToday = budget?.spentToday ?? 0;
   const remainingToday = budget?.remainingToday ?? 0;
   const progressPct = todayAllowance > 0 ? Math.min(100, (spentToday / todayAllowance) * 100) : 0;
-  const overBudget = remainingToday < 0;
 
   return (
     <div className="space-y-6">
@@ -78,14 +78,16 @@ export function DashboardPage() {
         <Button onClick={() => setModalOpen(true)}>+ Nuevo movimiento</Button>
       </div>
 
+      <BudgetAlerts budget={budget} lowBalanceAlert={user?.lowBalanceAlert} currency={currency} />
+
       <Card className="text-center">
         <p className="text-sm text-slate-500">Puedes gastar hoy</p>
-        <p className={`my-2 text-4xl font-semibold tracking-tight ${overBudget ? "text-expense" : ""}`}>
+        <p className="my-2 text-4xl font-semibold tracking-tight">
           {formatMoney(Math.max(remainingToday, 0), currency)}
         </p>
         <div className="mx-auto h-2 w-full max-w-sm overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
           <div
-            className={`h-full rounded-full ${overBudget ? "bg-red-600" : "bg-slate-900 dark:bg-slate-100"}`}
+            className="h-full rounded-full bg-slate-900 dark:bg-slate-100"
             style={{ width: `${progressPct}%` }}
           />
         </div>
@@ -108,13 +110,7 @@ export function DashboardPage() {
         </Card>
         <Card>
           <p className="text-xs text-slate-500">Restante del mes</p>
-          <p
-            className={`mt-1 text-lg font-semibold ${
-              (budget?.remainingMonthly ?? 0) < 0 ? "text-expense" : "text-income"
-            }`}
-          >
-            {formatMoney(budget?.remainingMonthly ?? 0, currency)}
-          </p>
+          <p className="mt-1 text-lg font-semibold">{formatMoney(budget?.remainingMonthly ?? 0, currency)}</p>
         </Card>
       </div>
 

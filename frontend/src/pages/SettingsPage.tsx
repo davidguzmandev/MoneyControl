@@ -177,8 +177,77 @@ export function SettingsPage() {
         </form>
       </Card>
 
+      <LowBalanceAlertCard />
+
       <WiseIntegrationCard />
     </div>
+  );
+}
+
+function LowBalanceAlertCard() {
+  const { user, updateSettings } = useAuth();
+  const [value, setValue] = useState(user?.lowBalanceAlert !== null ? String(user?.lowBalanceAlert ?? "") : "");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setValue(user?.lowBalanceAlert !== null && user?.lowBalanceAlert !== undefined ? String(user.lowBalanceAlert) : "");
+  }, [user?.lowBalanceAlert]);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    const trimmed = value.trim();
+    const parsed = trimmed === "" ? null : Number(trimmed);
+    if (parsed !== null && (Number.isNaN(parsed) || parsed < 0)) {
+      setError("Ingresa un monto válido");
+      return;
+    }
+    setError(null);
+    setSuccess(false);
+    setSaving(true);
+    try {
+      await updateSettings({ lowBalanceAlert: parsed });
+      setSuccess(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo guardar la alerta");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Alertas</h2>
+      <p className="mt-1 text-xs text-slate-400">
+        Te avisamos en el Resumen cuando tu restante del mes baje de este monto, cuando superes lo que
+        puedes gastar hoy, o cuando superes tu presupuesto del periodo. Deja el campo vacío para desactivar
+        el aviso de saldo bajo.
+      </p>
+      <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap items-end gap-2">
+        <div className="w-40">
+          <Label htmlFor="lowBalanceAlert">Avisar si el restante baja de</Label>
+          <Input
+            id="lowBalanceAlert"
+            type="number"
+            min={0}
+            step="0.01"
+            placeholder="Sin aviso"
+            value={value}
+            disabled={saving}
+            onChange={(e) => {
+              setValue(e.target.value);
+              setSuccess(false);
+            }}
+          />
+        </div>
+        <Button type="submit" variant="secondary" disabled={saving}>
+          {saving ? "Guardando..." : "Guardar"}
+        </Button>
+      </form>
+      <ErrorText>{error}</ErrorText>
+      {success && <p className="mt-2 text-xs text-emerald-600">Guardado correctamente.</p>}
+    </Card>
   );
 }
 

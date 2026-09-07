@@ -25,7 +25,11 @@ export async function convertUserCurrency(
       [rate, userId]
     );
     await client.query(
-      "UPDATE users SET savings_goal = savings_goal * $1, currency = $2 WHERE id = $3",
+      `UPDATE users
+       SET savings_goal = savings_goal * $1,
+           low_balance_alert = CASE WHEN low_balance_alert IS NOT NULL THEN low_balance_alert * $1 ELSE NULL END,
+           currency = $2
+       WHERE id = $3`,
       [rate, toCurrency, userId]
     );
     await client.query("COMMIT");
