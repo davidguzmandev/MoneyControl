@@ -6,6 +6,7 @@ import "./index.css";
 import App from "./App.tsx";
 import { AuthProvider } from "./context/AuthContext";
 import { ThemeProvider } from "./context/ThemeContext";
+import { LanguageProvider } from "./context/LanguageContext";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -21,9 +22,11 @@ createRoot(document.getElementById("root")!).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
-          <ThemeProvider>
-            <App />
-          </ThemeProvider>
+          <LanguageProvider>
+            <ThemeProvider>
+              <App />
+            </ThemeProvider>
+          </LanguageProvider>
         </AuthProvider>
       </BrowserRouter>
     </QueryClientProvider>

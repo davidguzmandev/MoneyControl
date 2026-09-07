@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { BudgetSummary, Currency } from "../types";
-import { formatMoney, todayISODate } from "../lib/format";
+import { formatMoney } from "../lib/format";
+import { useLanguage } from "../context/LanguageContext";
+import { todayISODate } from "../lib/format";
 
 const STORAGE_KEY = "moneycontrol_dismissed_alerts";
 
@@ -39,6 +41,7 @@ export function BudgetAlerts({
   lowBalanceAlert: number | null | undefined;
   currency: Currency;
 }) {
+  const { t } = useLanguage();
   const [dismissed, setDismissed] = useState<DismissedMap>({});
 
   useEffect(() => {
@@ -52,27 +55,29 @@ export function BudgetAlerts({
   if (lowBalanceAlert != null && budget.remainingMonthly < lowBalanceAlert) {
     alerts.push({
       id: "lowBalance",
-      message: `Tu restante del mes (${formatMoney(budget.remainingMonthly, currency)}) ya bajó de tu límite de aviso (${formatMoney(
-        lowBalanceAlert,
-        currency
-      )}). Te estás quedando sin dinero disponible este periodo.`,
+      message: t("alerts.lowBalance", {
+        remaining: formatMoney(budget.remainingMonthly, currency),
+        limit: formatMoney(lowBalanceAlert, currency),
+      }),
     });
   }
 
   if (budget.remainingToday < 0) {
     alerts.push({
       id: "dailyOverBudget",
-      message: `Ya superaste lo que puedes gastar hoy por ${formatMoney(Math.abs(budget.remainingToday), currency)}.`,
+      message: t("alerts.dailyOverBudget", {
+        amount: formatMoney(Math.abs(budget.remainingToday), currency),
+      }),
     });
   }
 
   if (budget.monthlyBudget > 0 && budget.spentSoFar > budget.monthlyBudget) {
     alerts.push({
       id: "periodOverBudget",
-      message: `Superaste tu presupuesto del periodo (${formatMoney(budget.monthlyBudget, currency)}) por ${formatMoney(
-        budget.spentSoFar - budget.monthlyBudget,
-        currency
-      )}.`,
+      message: t("alerts.periodOverBudget", {
+        budget: formatMoney(budget.monthlyBudget, currency),
+        amount: formatMoney(budget.spentSoFar - budget.monthlyBudget, currency),
+      }),
     });
   }
 
@@ -97,7 +102,7 @@ export function BudgetAlerts({
           <span>{alert.message}</span>
           <button
             onClick={() => dismiss(alert.id)}
-            aria-label="Cerrar aviso"
+            aria-label={t("common.closeAlert")}
             className="shrink-0 text-amber-600 transition hover:text-amber-900 dark:text-amber-400 dark:hover:text-amber-100"
           >
             ✕

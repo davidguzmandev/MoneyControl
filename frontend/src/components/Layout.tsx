@@ -1,23 +1,27 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { LayoutGrid, ListTree, LineChart, Settings as SettingsIcon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
+import type { TranslationKey } from "../i18n/es";
 
-const navItems = [
-  { to: "/app", label: "Resumen", end: true, icon: LayoutGrid },
-  { to: "/app/categories", label: "Categorías", end: false, icon: ListTree },
-  { to: "/app/stats", label: "Estadísticas", end: false, icon: LineChart },
-  { to: "/app/settings", label: "Configuración", end: false, icon: SettingsIcon },
+const navKeys: { to: string; labelKey: TranslationKey; end: boolean; icon: typeof LayoutGrid }[] = [
+  { to: "/app", labelKey: "nav.dashboard", end: true, icon: LayoutGrid },
+  { to: "/app/categories", labelKey: "nav.categories", end: false, icon: ListTree },
+  { to: "/app/stats", labelKey: "nav.stats", end: false, icon: LineChart },
+  { to: "/app/settings", labelKey: "nav.settings", end: false, icon: SettingsIcon },
 ];
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const { t } = useLanguage();
+  const navItems = navKeys.map((item) => ({ ...item, label: t(item.labelKey) }));
 
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
           <a href="/app" className="text-lg font-semibold tracking-tight">
-            Money Control
+            {t("auth.appName")}
           </a>
           <div className="flex items-center gap-4">
             <span className="hidden text-sm text-slate-500 sm:inline">{user?.name}</span>
@@ -25,7 +29,7 @@ export function Layout() {
               onClick={() => logout()}
               className="rounded-full px-3 py-1.5 text-sm text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-100"
             >
-              Cerrar sesión
+              {t("nav.logout")}
             </button>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import type { Category, Transaction, TransactionType } from "../types";
 import { todayISODate } from "../lib/format";
+import { useLanguage } from "../context/LanguageContext";
 import { Button, ErrorText, Input, Label, Select } from "./ui";
 
 export interface TransactionFormValues {
@@ -15,7 +16,7 @@ export interface TransactionFormValues {
 export function TransactionForm({
   categories,
   initial,
-  submitLabel = "Guardar",
+  submitLabel,
   onSubmit,
   onCancel,
 }: {
@@ -25,6 +26,7 @@ export function TransactionForm({
   onSubmit: (values: TransactionFormValues) => Promise<void>;
   onCancel?: () => void;
 }) {
+  const { t } = useLanguage();
   const [type, setType] = useState<TransactionType>(initial?.type ?? "EXPENSE");
   const [amount, setAmount] = useState(initial?.amount !== undefined ? String(initial.amount) : "");
   const [categoryId, setCategoryId] = useState(initial?.categoryId ?? "");
@@ -48,18 +50,18 @@ export function TransactionForm({
     setError(null);
     const parsedAmount = Number(amount);
     if (!parsedAmount || parsedAmount <= 0) {
-      setError("Ingresa un monto válido");
+      setError(t("validation.invalidAmount"));
       return;
     }
     if (!categoryId) {
-      setError("Selecciona una categoría");
+      setError(t("validation.selectCategory"));
       return;
     }
     setLoading(true);
     try {
       await onSubmit({ type, amount: parsedAmount, categoryId, description, date });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ocurrió un error");
+      setError(err instanceof Error ? err.message : t("common.genericError"));
     } finally {
       setLoading(false);
     }
@@ -77,7 +79,7 @@ export function TransactionForm({
               : "border-slate-200 text-slate-500 dark:border-slate-700"
           }`}
         >
-          Gasto
+          {t("common.expense")}
         </button>
         <button
           type="button"
@@ -88,12 +90,12 @@ export function TransactionForm({
               : "border-slate-200 text-slate-500 dark:border-slate-700"
           }`}
         >
-          Ingreso
+          {t("common.income")}
         </button>
       </div>
 
       <div>
-        <Label htmlFor="amount">Monto</Label>
+        <Label htmlFor="amount">{t("common.amount")}</Label>
         <Input
           id="amount"
           type="number"
@@ -107,11 +109,11 @@ export function TransactionForm({
       </div>
 
       <div>
-        <Label htmlFor="categoryId">Categoría</Label>
+        <Label htmlFor="categoryId">{t("common.category")}</Label>
         <Select id="categoryId" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
           {filteredCategories.length === 0 && (
             <option value="">
-              {categories.length === 0 ? "Cargando categorías..." : "No tienes categorías de este tipo"}
+              {categories.length === 0 ? t("common.loadingCategories") : t("transactionForm.noCategoriesOfType")}
             </option>
           )}
           {filteredCategories.map((c) => (
@@ -123,12 +125,12 @@ export function TransactionForm({
       </div>
 
       <div>
-        <Label htmlFor="date">Fecha</Label>
+        <Label htmlFor="date">{t("common.date")}</Label>
         <Input id="date" type="date" required value={date} onChange={(e) => setDate(e.target.value)} />
       </div>
 
       <div>
-        <Label htmlFor="description">Descripción (opcional)</Label>
+        <Label htmlFor="description">{t("transactionForm.descriptionOptional")}</Label>
         <Input id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
       </div>
 
@@ -137,11 +139,11 @@ export function TransactionForm({
       <div className="flex justify-end gap-2 pt-1">
         {onCancel && (
           <Button type="button" variant="secondary" onClick={onCancel}>
-            Cancelar
+            {t("common.cancel")}
           </Button>
         )}
         <Button type="submit" disabled={loading || filteredCategories.length === 0}>
-          {loading ? "Guardando..." : submitLabel}
+          {loading ? t("common.saving") : submitLabel ?? t("common.save")}
         </Button>
       </div>
     </form>

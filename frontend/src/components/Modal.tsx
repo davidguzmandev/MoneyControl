@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useLanguage } from "../context/LanguageContext";
 
 export function Modal({
   open,
@@ -11,6 +12,8 @@ export function Modal({
   title: string;
   children: ReactNode;
 }) {
+  const { t } = useLanguage();
+
   if (!open) return null;
 
   return (
@@ -21,7 +24,7 @@ export function Modal({
           <button
             onClick={onClose}
             className="text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
-            aria-label="Cerrar"
+            aria-label={t("common.close")}
           >
             ✕
           </button>

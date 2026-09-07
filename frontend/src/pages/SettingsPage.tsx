@@ -3,24 +3,14 @@ import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { useLanguage } from "../context/LanguageContext";
 import { api, ApiError } from "../lib/api";
-import type { Currency, Theme } from "../types";
+import type { Currency, Language, Theme } from "../types";
 import { Button, Card, ErrorText, Input, Label, Select } from "../components/ui";
-
-const PRESETS = [
-  { day: 1, label: "Del 1 al último día del mes" },
-  { day: 15, label: "Del 15 al 14 del mes siguiente" },
-];
-
-const CURRENCIES: { value: Currency; label: string }[] = [
-  { value: "USD", label: "USD: Dólar estadounidense" },
-  { value: "COP", label: "COP: Peso colombiano" },
-  { value: "MXN", label: "MXN: Peso mexicano" },
-  { value: "CAD", label: "CAD: Dólar canadiense" },
-];
 
 export function SettingsPage() {
   const { user, updateSettings } = useAuth();
+  const { t } = useLanguage();
   const [name, setName] = useState(user?.name ?? "");
   const [cycleStartDay, setCycleStartDay] = useState(user?.cycleStartDay ?? 1);
   const [customDay, setCustomDay] = useState(!PRESETS.some((p) => p.day === user?.cycleStartDay));
@@ -52,7 +42,7 @@ export function SettingsPage() {
       setSuccess(true);
       setRateNotice(null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar la configuración");
+      setError(err instanceof ApiError ? err.message : t("settings.saveError"));
     } finally {
       setLoading(false);
     }
@@ -71,7 +61,7 @@ export function SettingsPage() {
         );
         setRateNotice(preview);
       } catch (err) {
-        setError(err instanceof ApiError ? err.message : "No se pudo calcular la conversión");
+        setError(err instanceof ApiError ? err.message : t("settings.conversionCalcError"));
       } finally {
         setCheckingRate(false);
       }
@@ -81,22 +71,29 @@ export function SettingsPage() {
     await saveSettings();
   }
 
+  const CURRENCIES: { value: Currency; label: string }[] = [
+    { value: "USD", label: t("settings.currencyUSD") },
+    { value: "COP", label: t("settings.currencyCOP") },
+    { value: "MXN", label: t("settings.currencyMXN") },
+    { value: "CAD", label: t("settings.currencyCAD") },
+  ];
+
   return (
     <div className="max-w-xl space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Configuración</h1>
-        <p className="text-sm text-slate-500">Ajusta tu perfil, periodo de mes y moneda.</p>
+        <h1 className="text-xl font-semibold tracking-tight">{t("nav.settings")}</h1>
+        <p className="text-sm text-slate-500">{t("settings.subtitle")}</p>
       </div>
 
       <Card>
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <Label htmlFor="name">Nombre</Label>
+            <Label htmlFor="name">{t("common.name")}</Label>
             <Input id="name" value={name} onChange={(e) => setName(e.target.value)} />
           </div>
 
           <div>
-            <Label>Periodo de tu mes</Label>
+            <Label>{t("settings.periodLabel")}</Label>
             <div className="space-y-2">
               {PRESETS.map((preset) => (
                 <label key={preset.day} className="flex items-center gap-2 text-sm">
@@ -108,16 +105,12 @@ export function SettingsPage() {
                       setCycleStartDay(preset.day);
                     }}
                   />
-                  {preset.label}
+                  {t(preset.labelKey)}
                 </label>
               ))}
               <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="radio"
-                  checked={customDay}
-                  onChange={() => setCustomDay(true)}
-                />
-                Otro día de inicio
+                <input type="radio" checked={customDay} onChange={() => setCustomDay(true)} />
+                {t("settings.periodCustom")}
                 {customDay && (
                   <Input
                     type="number"
@@ -133,7 +126,7 @@ export function SettingsPage() {
           </div>
 
           <div>
-            <Label htmlFor="currency">Moneda</Label>
+            <Label htmlFor="currency">{t("settings.currencyLabel")}</Label>
             <Select id="currency" value={currency} onChange={(e) => setCurrency(e.target.value as Currency)}>
               {CURRENCIES.map((c) => (
                 <option key={c.value} value={c.value}>
@@ -144,41 +137,42 @@ export function SettingsPage() {
           </div>
 
           <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500 dark:bg-slate-800">
-            Tu presupuesto diario se calcula con lo que asignes a cada categoría de gasto en{" "}
-            <span className="font-medium">Categorías</span>. Lo que asignes no puede superar tu ingreso
-            del periodo, y lo que no gastes en un día se suma al siguiente.
+            {t("settings.budgetExplanationPre")} <span className="font-medium">{t("nav.categories")}</span>.{" "}
+            {t("settings.budgetExplanationPost")}
           </div>
 
           {rateNotice && (
             <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
               <p>
-                Vas a cambiar tu moneda de {rateNotice.from} a {rateNotice.to}. Todos tus movimientos,
-                presupuestos de categoría y meta de ahorro guardados se van a multiplicar por la tasa 1{" "}
-                {rateNotice.from} = {rateNotice.rate.toFixed(4)} {rateNotice.to}. Si tus montos ya estaban
-                pensados en {rateNotice.to} y solo quieres corregir la etiqueta, cancela y no cambies la
-                moneda.
+                {t("settings.currencyChangeWarning", {
+                  from: rateNotice.from,
+                  to: rateNotice.to,
+                  rate: rateNotice.rate.toFixed(4),
+                })}
               </p>
               <div className="flex gap-2">
                 <Button type="button" variant="secondary" onClick={() => setRateNotice(null)}>
-                  Cancelar
+                  {t("common.cancel")}
                 </Button>
                 <Button type="button" disabled={loading} onClick={() => saveSettings()}>
-                  {loading ? "Convirtiendo..." : "Confirmar conversión"}
+                  {loading ? t("settings.converting") : t("settings.confirmConversion")}
                 </Button>
               </div>
             </div>
           )}
 
           <ErrorText>{error}</ErrorText>
-          {success && <p className="text-sm text-emerald-600">Guardado correctamente.</p>}
+          {success && <p className="text-sm text-emerald-600">{t("common.savedSuccessfully")}</p>}
 
           <Button type="submit" disabled={loading || checkingRate || !!rateNotice}>
-            {checkingRate ? "Calculando..." : loading ? "Guardando..." : "Guardar cambios"}
+            {checkingRate ? t("settings.calculating") : loading ? t("common.saving") : t("common.saveChanges")}
           </Button>
         </form>
       </Card>
 
       <ThemeCard />
+
+      <LanguageCard />
 
       <LowBalanceAlertCard />
 
@@ -193,19 +187,25 @@ export function SettingsPage() {
   );
 }
 
-const THEME_OPTIONS: { value: Theme; label: string }[] = [
-  { value: "system", label: "Igual que mi dispositivo" },
-  { value: "light", label: "Claro" },
-  { value: "dark", label: "Oscuro" },
+const PRESETS: { day: number; labelKey: "settings.periodPreset1" | "settings.periodPreset15" }[] = [
+  { day: 1, labelKey: "settings.periodPreset1" },
+  { day: 15, labelKey: "settings.periodPreset15" },
+];
+
+const THEME_OPTIONS: { value: Theme; labelKey: "settings.themeSystem" | "settings.themeLight" | "settings.themeDark" }[] = [
+  { value: "system", labelKey: "settings.themeSystem" },
+  { value: "light", labelKey: "settings.themeLight" },
+  { value: "dark", labelKey: "settings.themeDark" },
 ];
 
 function ThemeCard() {
   const { theme, setTheme } = useTheme();
+  const { t } = useLanguage();
 
   return (
     <Card>
-      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Apariencia</h2>
-      <p className="mt-1 text-xs text-slate-400">Elige cómo se ve Money Control en este y otros dispositivos.</p>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t("settings.appearance")}</h2>
+      <p className="mt-1 text-xs text-slate-400">{t("settings.appearanceDescription")}</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {THEME_OPTIONS.map((opt) => (
           <button
@@ -218,7 +218,39 @@ function ThemeCard() {
                 : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
             }`}
           >
-            {opt.label}
+            {t(opt.labelKey)}
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+const LANGUAGE_OPTIONS: { value: Language; labelKey: "settings.languageEs" | "settings.languageEn" }[] = [
+  { value: "es", labelKey: "settings.languageEs" },
+  { value: "en", labelKey: "settings.languageEn" },
+];
+
+function LanguageCard() {
+  const { language, setLanguage, t } = useLanguage();
+
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t("settings.language")}</h2>
+      <p className="mt-1 text-xs text-slate-400">{t("settings.languageDescription")}</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {LANGUAGE_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setLanguage(opt.value)}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              language === opt.value
+                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            }`}
+          >
+            {t(opt.labelKey)}
           </button>
         ))}
       </div>
@@ -228,6 +260,7 @@ function ThemeCard() {
 
 function ChangePasswordCard() {
   const { changePassword } = useAuth();
+  const { t } = useLanguage();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -240,11 +273,11 @@ function ChangePasswordCard() {
     setError(null);
     setSuccess(false);
     if (newPassword.length < 8) {
-      setError("La nueva contraseña debe tener al menos 8 caracteres");
+      setError(t("validation.passwordMinLength"));
       return;
     }
     if (newPassword !== confirmPassword) {
-      setError("Las contraseñas nuevas no coinciden");
+      setError(t("validation.passwordMismatch"));
       return;
     }
     setSaving(true);
@@ -255,7 +288,7 @@ function ChangePasswordCard() {
       setNewPassword("");
       setConfirmPassword("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo cambiar la contraseña");
+      setError(err instanceof ApiError ? err.message : t("settings.changePasswordError"));
     } finally {
       setSaving(false);
     }
@@ -263,10 +296,10 @@ function ChangePasswordCard() {
 
   return (
     <Card>
-      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Contraseña</h2>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t("common.password")}</h2>
       <form onSubmit={handleSubmit} className="mt-4 space-y-4">
         <div>
-          <Label htmlFor="currentPassword">Contraseña actual</Label>
+          <Label htmlFor="currentPassword">{t("settings.currentPassword")}</Label>
           <Input
             id="currentPassword"
             type="password"
@@ -275,7 +308,7 @@ function ChangePasswordCard() {
           />
         </div>
         <div>
-          <Label htmlFor="newPassword">Nueva contraseña</Label>
+          <Label htmlFor="newPassword">{t("settings.newPassword")}</Label>
           <Input
             id="newPassword"
             type="password"
@@ -284,7 +317,7 @@ function ChangePasswordCard() {
           />
         </div>
         <div>
-          <Label htmlFor="confirmPassword">Confirmar nueva contraseña</Label>
+          <Label htmlFor="confirmPassword">{t("settings.confirmNewPassword")}</Label>
           <Input
             id="confirmPassword"
             type="password"
@@ -293,9 +326,9 @@ function ChangePasswordCard() {
           />
         </div>
         <ErrorText>{error}</ErrorText>
-        {success && <p className="text-sm text-emerald-600">Contraseña actualizada correctamente.</p>}
+        {success && <p className="text-sm text-emerald-600">{t("settings.passwordUpdated")}</p>}
         <Button type="submit" disabled={saving}>
-          {saving ? "Guardando..." : "Cambiar contraseña"}
+          {saving ? t("common.saving") : t("settings.changePassword")}
         </Button>
       </form>
     </Card>
@@ -304,6 +337,7 @@ function ChangePasswordCard() {
 
 function DeleteAccountCard() {
   const { deleteAccount } = useAuth();
+  const { t } = useLanguage();
   const [confirming, setConfirming] = useState(false);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -316,18 +350,15 @@ function DeleteAccountCard() {
     try {
       await deleteAccount(password);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo eliminar la cuenta");
+      setError(err instanceof ApiError ? err.message : t("settings.deleteAccountError"));
       setDeleting(false);
     }
   }
 
   return (
     <Card>
-      <h2 className="text-sm font-semibold text-red-600">Eliminar cuenta</h2>
-      <p className="mt-1 text-xs text-slate-400">
-        Esto borra tu cuenta y todos tus movimientos, categorías y conexiones de forma permanente. No se
-        puede deshacer.
-      </p>
+      <h2 className="text-sm font-semibold text-red-600">{t("settings.deleteAccountTitle")}</h2>
+      <p className="mt-1 text-xs text-slate-400">{t("settings.deleteAccountWarning")}</p>
       {!confirming ? (
         <Button
           type="button"
@@ -338,12 +369,12 @@ function DeleteAccountCard() {
             setError(null);
           }}
         >
-          Eliminar mi cuenta
+          {t("settings.deleteAccountButton")}
         </Button>
       ) : (
         <form onSubmit={handleDelete} className="mt-4 space-y-3">
           <div>
-            <Label htmlFor="deletePassword">Confirma tu contraseña para eliminar la cuenta</Label>
+            <Label htmlFor="deletePassword">{t("settings.confirmPasswordToDelete")}</Label>
             <Input
               id="deletePassword"
               type="password"
@@ -362,10 +393,10 @@ function DeleteAccountCard() {
                 setError(null);
               }}
             >
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button type="submit" variant="danger" disabled={deleting || !password}>
-              {deleting ? "Eliminando..." : "Confirmar eliminación"}
+              {deleting ? t("settings.deleting") : t("settings.confirmDeletion")}
             </Button>
           </div>
         </form>
@@ -376,6 +407,7 @@ function DeleteAccountCard() {
 
 function LowBalanceAlertCard() {
   const { user, updateSettings } = useAuth();
+  const { t } = useLanguage();
   const [value, setValue] = useState(user?.lowBalanceAlert !== null ? String(user?.lowBalanceAlert ?? "") : "");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -390,7 +422,7 @@ function LowBalanceAlertCard() {
     const trimmed = value.trim();
     const parsed = trimmed === "" ? null : Number(trimmed);
     if (parsed !== null && (Number.isNaN(parsed) || parsed < 0)) {
-      setError("Ingresa un monto válido");
+      setError(t("validation.invalidAmount"));
       return;
     }
     setError(null);
@@ -400,7 +432,7 @@ function LowBalanceAlertCard() {
       await updateSettings({ lowBalanceAlert: parsed });
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar la alerta");
+      setError(err instanceof ApiError ? err.message : t("settings.alertSaveError"));
     } finally {
       setSaving(false);
     }
@@ -408,21 +440,17 @@ function LowBalanceAlertCard() {
 
   return (
     <Card>
-      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Alertas</h2>
-      <p className="mt-1 text-xs text-slate-400">
-        Te avisamos en el Resumen cuando tu restante del mes baje de este monto, cuando superes lo que
-        puedes gastar hoy, o cuando superes tu presupuesto del periodo. Deja el campo vacío para desactivar
-        el aviso de saldo bajo.
-      </p>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t("settings.alertsTitle")}</h2>
+      <p className="mt-1 text-xs text-slate-400">{t("settings.alertsDescription")}</p>
       <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap items-end gap-2">
         <div className="w-40">
-          <Label htmlFor="lowBalanceAlert">Avisar si el restante baja de</Label>
+          <Label htmlFor="lowBalanceAlert">{t("settings.lowBalanceLabel")}</Label>
           <Input
             id="lowBalanceAlert"
             type="number"
             min={0}
             step="0.01"
-            placeholder="Sin aviso"
+            placeholder={t("settings.noAlertPlaceholder")}
             value={value}
             disabled={saving}
             onChange={(e) => {
@@ -432,17 +460,18 @@ function LowBalanceAlertCard() {
           />
         </div>
         <Button type="submit" variant="secondary" disabled={saving}>
-          {saving ? "Guardando..." : "Guardar"}
+          {saving ? t("common.saving") : t("common.save")}
         </Button>
       </form>
       <ErrorText>{error}</ErrorText>
-      {success && <p className="mt-2 text-xs text-emerald-600">Guardado correctamente.</p>}
+      {success && <p className="mt-2 text-xs text-emerald-600">{t("common.savedSuccessfully")}</p>}
     </Card>
   );
 }
 
 function BalanceSinceCard() {
   const { user, updateSettings } = useAuth();
+  const { t } = useLanguage();
   const [value, setValue] = useState(user?.balanceSince ?? "");
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -461,7 +490,7 @@ function BalanceSinceCard() {
       await updateSettings({ balanceSince: value.trim() === "" ? null : value });
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar la fecha");
+      setError(err instanceof ApiError ? err.message : t("settings.balanceSinceSaveError"));
     } finally {
       setSaving(false);
     }
@@ -469,14 +498,11 @@ function BalanceSinceCard() {
 
   return (
     <Card>
-      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Saldo acumulado</h2>
-      <p className="mt-1 text-xs text-slate-400">
-        "Restante del mes" suma tus ingresos y gastos desde esta fecha en adelante, sin reiniciarse en
-        cada periodo. Déjalo vacío para contar toda tu historia de movimientos.
-      </p>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t("settings.balanceSinceTitle")}</h2>
+      <p className="mt-1 text-xs text-slate-400">{t("settings.balanceSinceDescription")}</p>
       <form onSubmit={handleSubmit} className="mt-4 flex flex-wrap items-end gap-2">
         <div className="w-44">
-          <Label htmlFor="balanceSince">Contar desde</Label>
+          <Label htmlFor="balanceSince">{t("settings.countFrom")}</Label>
           <Input
             id="balanceSince"
             type="date"
@@ -489,11 +515,11 @@ function BalanceSinceCard() {
           />
         </div>
         <Button type="submit" variant="secondary" disabled={saving}>
-          {saving ? "Guardando..." : "Guardar"}
+          {saving ? t("common.saving") : t("common.save")}
         </Button>
       </form>
       <ErrorText>{error}</ErrorText>
-      {success && <p className="mt-2 text-xs text-emerald-600">Guardado correctamente.</p>}
+      {success && <p className="mt-2 text-xs text-emerald-600">{t("common.savedSuccessfully")}</p>}
     </Card>
   );
 }
@@ -512,6 +538,7 @@ interface WiseBalanceOption {
 
 function WiseIntegrationCard() {
   const queryClient = useQueryClient();
+  const { t, language } = useLanguage();
   const [token, setToken] = useState("");
   const [balances, setBalances] = useState<WiseBalanceOption[] | null>(null);
   const [selectedBalanceId, setSelectedBalanceId] = useState<number | null>(null);
@@ -529,13 +556,13 @@ function WiseIntegrationCard() {
     onSuccess: (data) => {
       setError(null);
       if (data.balances.length === 0) {
-        setError("No se encontró ningún balance en tu cuenta de Wise");
+        setError(t("settings.wiseNoBalance"));
         return;
       }
       setBalances(data.balances);
       setSelectedBalanceId(data.balances[0].id);
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo validar el token"),
+    onError: (err) => setError(err instanceof ApiError ? err.message : t("settings.wiseTokenError")),
   });
 
   const connectMutation = useMutation({
@@ -549,32 +576,32 @@ function WiseIntegrationCard() {
       setToken("");
       setBalances(null);
       setSelectedBalanceId(null);
-      setMessage(`Conectado en ${data.currency}. Se importaron ${data.imported} movimientos.`);
+      setMessage(t("settings.wiseConnectedMessage", { currency: data.currency, imported: data.imported }));
       queryClient.invalidateQueries({ queryKey: ["integrations", "wise", "status"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["budget"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo conectar con Wise"),
+    onError: (err) => setError(err instanceof ApiError ? err.message : t("settings.wiseConnectError")),
   });
 
   const syncMutation = useMutation({
     mutationFn: () => api.post<{ imported: number; recategorized: number }>("/integrations/wise/sync"),
     onSuccess: (data) => {
       setError(null);
-      const parts = [`Se importaron ${data.imported} movimientos nuevos.`];
+      const parts = [t("settings.wiseImportedMessage", { imported: data.imported })];
       if (data.recategorized > 0) {
-        parts.push(`Se corrigió la categoría de ${data.recategorized} movimientos ya existentes.`);
+        parts.push(t("settings.wiseRecategorizedMessage", { count: data.recategorized }));
       }
-      setMessage(`Sincronizado. ${parts.join(" ")}`);
+      setMessage(`${t("settings.wiseSyncedPrefix")} ${parts.join(" ")}`);
       queryClient.invalidateQueries({ queryKey: ["integrations", "wise", "status"] });
       queryClient.invalidateQueries({ queryKey: ["transactions"] });
       queryClient.invalidateQueries({ queryKey: ["budget"] });
       queryClient.invalidateQueries({ queryKey: ["stats"] });
       queryClient.invalidateQueries({ queryKey: ["categories"] });
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo sincronizar con Wise"),
+    onError: (err) => setError(err instanceof ApiError ? err.message : t("settings.wiseSyncError")),
   });
 
   const disconnectMutation = useMutation({
@@ -584,7 +611,7 @@ function WiseIntegrationCard() {
       setMessage(null);
       queryClient.invalidateQueries({ queryKey: ["integrations", "wise", "status"] });
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo desconectar Wise"),
+    onError: (err) => setError(err instanceof ApiError ? err.message : t("settings.wiseDisconnectError")),
   });
 
   function handleValidate(e: FormEvent) {
@@ -597,20 +624,18 @@ function WiseIntegrationCard() {
 
   return (
     <Card>
-      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Wise</h2>
-      <p className="mt-1 text-xs text-slate-400">
-        Conecta tu cuenta de Wise para importar tus movimientos automáticamente cada 15 minutos. Los
-        ingresos se guardan en tu categoría "Salario" (así alimentan tu presupuesto igual que un ingreso
-        manual) y los gastos en "Wise Gasto", para que los reclasifiques si quieres.
-      </p>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t("settings.wiseTitle")}</h2>
+      <p className="mt-1 text-xs text-slate-400">{t("settings.wiseDescription")}</p>
 
       {status?.connected ? (
         <div className="mt-4 space-y-3">
           <p className="text-sm text-emerald-600">
-            Conectado (moneda de Wise: {status.currency}).{" "}
+            {t("settings.wiseConnectedStatus", { currency: status.currency ?? "" })}{" "}
             {status.lastSyncedAt
-              ? `Última sincronización: ${new Date(status.lastSyncedAt).toLocaleString("es-MX")}`
-              : "Todavía no se ha sincronizado."}
+              ? t("settings.wiseLastSync", {
+                  date: new Date(status.lastSyncedAt).toLocaleString(language === "en" ? "en-US" : "es-MX"),
+                })
+              : t("settings.wiseNeverSynced")}
           </p>
           <div className="flex gap-2">
             <Button
@@ -619,7 +644,7 @@ function WiseIntegrationCard() {
               disabled={syncMutation.isPending}
               onClick={() => syncMutation.mutate()}
             >
-              {syncMutation.isPending ? "Sincronizando..." : "Sincronizar ahora"}
+              {syncMutation.isPending ? t("settings.wiseSyncing") : t("settings.wiseSyncNow")}
             </Button>
             <Button
               type="button"
@@ -627,14 +652,14 @@ function WiseIntegrationCard() {
               disabled={disconnectMutation.isPending}
               onClick={() => disconnectMutation.mutate()}
             >
-              Desconectar
+              {t("settings.wiseDisconnect")}
             </Button>
           </div>
         </div>
       ) : balances ? (
         <div className="mt-4 space-y-3">
           <div>
-            <Label htmlFor="wiseBalance">Balance a sincronizar</Label>
+            <Label htmlFor="wiseBalance">{t("settings.wiseBalanceLabel")}</Label>
             <Select
               id="wiseBalance"
               value={selectedBalanceId ?? ""}
@@ -656,27 +681,27 @@ function WiseIntegrationCard() {
                 setSelectedBalanceId(null);
               }}
             >
-              Cancelar
+              {t("common.cancel")}
             </Button>
             <Button type="button" disabled={connectMutation.isPending} onClick={() => connectMutation.mutate()}>
-              {connectMutation.isPending ? "Conectando..." : "Confirmar y conectar"}
+              {connectMutation.isPending ? t("settings.wiseConnecting") : t("settings.wiseConfirmConnect")}
             </Button>
           </div>
         </div>
       ) : (
         <form onSubmit={handleValidate} className="mt-4 flex flex-wrap items-end gap-2">
           <div className="min-w-[220px] flex-1">
-            <Label htmlFor="wiseToken">Token de API de Wise</Label>
+            <Label htmlFor="wiseToken">{t("settings.wiseTokenLabel")}</Label>
             <Input
               id="wiseToken"
               type="password"
               value={token}
               onChange={(e) => setToken(e.target.value)}
-              placeholder="Pega tu token aquí"
+              placeholder={t("settings.wiseTokenPlaceholder")}
             />
           </div>
           <Button type="submit" disabled={balancesMutation.isPending}>
-            {balancesMutation.isPending ? "Validando..." : "Continuar"}
+            {balancesMutation.isPending ? t("settings.wiseValidating") : t("common.continue")}
           </Button>
         </form>
       )}

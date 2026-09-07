@@ -2,11 +2,13 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 import { ApiError } from "../lib/api";
 import { Button, Card, ErrorText, Input, Label } from "../components/ui";
 
 export function RegisterPage() {
   const { register } = useAuth();
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -22,7 +24,7 @@ export function RegisterPage() {
       await register(email, password, name);
       navigate("/app");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Error al crear la cuenta");
+      setError(err instanceof ApiError ? err.message : t("auth.registerError"));
     } finally {
       setLoading(false);
     }
@@ -31,19 +33,19 @@ export function RegisterPage() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4">
       <Card className="w-full max-w-sm">
-        <h1 className="mb-1 text-xl font-semibold tracking-tight">Money Control</h1>
-        <p className="mb-6 text-sm text-slate-500">Crea tu cuenta</p>
+        <h1 className="mb-1 text-xl font-semibold tracking-tight">{t("auth.appName")}</h1>
+        <p className="mb-6 text-sm text-slate-500">{t("auth.registerSubtitle")}</p>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <Label htmlFor="name">Nombre</Label>
+            <Label htmlFor="name">{t("common.name")}</Label>
             <Input id="name" required value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div>
-            <Label htmlFor="email">Correo</Label>
+            <Label htmlFor="email">{t("common.email")}</Label>
             <Input id="email" type="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
           <div>
-            <Label htmlFor="password">Contraseña</Label>
+            <Label htmlFor="password">{t("common.password")}</Label>
             <Input
               id="password"
               type="password"
@@ -55,13 +57,13 @@ export function RegisterPage() {
           </div>
           <ErrorText>{error}</ErrorText>
           <Button type="submit" className="w-full" disabled={loading}>
-            {loading ? "Creando cuenta..." : "Crear cuenta"}
+            {loading ? t("auth.creatingAccount") : t("auth.createAccount")}
           </Button>
         </form>
         <p className="mt-6 text-center text-sm text-slate-500">
-          ¿Ya tienes cuenta?{" "}
+          {t("auth.hasAccount")}{" "}
           <Link to="/login" className="font-medium text-slate-900 dark:text-slate-100">
-            Inicia sesión
+            {t("auth.signIn")}
           </Link>
         </p>
       </Card>

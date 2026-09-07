@@ -10,9 +10,11 @@ import { BudgetAlerts } from "../components/BudgetAlerts";
 import { TransactionForm } from "../components/TransactionForm";
 import type { TransactionFormValues } from "../components/TransactionForm";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 
 export function DashboardPage() {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const currency = user?.currency ?? "USD";
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
@@ -68,20 +70,23 @@ export function DashboardPage() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Resumen</h1>
+          <h1 className="text-xl font-semibold tracking-tight">{t("nav.dashboard")}</h1>
           {budget && (
             <p className="text-sm text-slate-500">
-              Periodo actual: {formatDate(budget.periodStart)} al {formatDate(budget.periodEnd)}
+              {t("dashboard.periodLabel", {
+                start: formatDate(budget.periodStart, language),
+                end: formatDate(budget.periodEnd, language),
+              })}
             </p>
           )}
         </div>
-        <Button onClick={() => setModalOpen(true)}>+ Nuevo movimiento</Button>
+        <Button onClick={() => setModalOpen(true)}>{t("dashboard.newTransaction")}</Button>
       </div>
 
       <BudgetAlerts budget={budget} lowBalanceAlert={user?.lowBalanceAlert} currency={currency} />
 
       <Card className="text-center">
-        <p className="text-sm text-slate-500">Puedes gastar hoy</p>
+        <p className="text-sm text-slate-500">{t("dashboard.canSpendToday")}</p>
         <p className="my-2 text-4xl font-semibold tracking-tight">
           {formatMoney(Math.max(remainingToday, 0), currency)}
         </p>
@@ -92,24 +97,26 @@ export function DashboardPage() {
           />
         </div>
         <p className="mt-2 text-xs text-slate-400">
-          Gastado hoy {formatMoney(spentToday, currency)} de {formatMoney(Math.max(todayAllowance, 0), currency)}{" "}
-          asignados
+          {t("dashboard.spentTodayOf", {
+            spent: formatMoney(spentToday, currency),
+            allowance: formatMoney(Math.max(todayAllowance, 0), currency),
+          })}
         </p>
       </Card>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Card>
-          <p className="text-xs text-slate-500">Presupuesto mensual</p>
+          <p className="text-xs text-slate-500">{t("dashboard.monthlyBudget")}</p>
           <p className="mt-1 text-lg font-semibold">{formatMoney(budget?.monthlyBudget ?? 0, currency)}</p>
         </Card>
         <Card>
-          <p className="text-xs text-slate-500">Gastado en el periodo</p>
+          <p className="text-xs text-slate-500">{t("dashboard.spentInPeriod")}</p>
           <p className="mt-1 text-lg font-semibold text-expense">
             {formatMoney(budget?.spentSoFar ?? 0, currency)}
           </p>
         </Card>
         <Card>
-          <p className="text-xs text-slate-500">Restante del mes</p>
+          <p className="text-xs text-slate-500">{t("dashboard.remainingMonth")}</p>
           <p
             className={`mt-1 text-lg font-semibold ${
               (budget?.remainingMonthly ?? 0) < 0 ? "text-expense" : "text-income"
@@ -123,44 +130,44 @@ export function DashboardPage() {
       <SavingsSection savingsGoal={budget?.savingsGoal ?? 0} currency={currency} />
 
       <Card>
-        <h2 className="mb-3 text-sm font-semibold text-slate-500">Movimientos recientes</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500">{t("dashboard.recentTransactions")}</h2>
         <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-          {transactions?.map((t) => (
-            <li key={t.id} className="flex items-center justify-between py-2.5">
+          {transactions?.map((t2) => (
+            <li key={t2.id} className="flex items-center justify-between py-2.5">
               <div className="flex items-center gap-3">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: t.category.color }} />
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: t2.category.color }} />
                 <div>
-                  <p className="text-sm font-medium">{t.category.name}</p>
-                  <p className="text-xs text-slate-400">{formatDate(t.date.slice(0, 10))}</p>
+                  <p className="text-sm font-medium">{t2.category.name}</p>
+                  <p className="text-xs text-slate-400">{formatDate(t2.date.slice(0, 10), language)}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
-                <span className={`text-sm font-semibold ${t.type === "INCOME" ? "text-income" : "text-expense"}`}>
-                  {t.type === "INCOME" ? "+" : "-"}
-                  {formatMoney(t.amount, currency)}
+                <span className={`text-sm font-semibold ${t2.type === "INCOME" ? "text-income" : "text-expense"}`}>
+                  {t2.type === "INCOME" ? "+" : "-"}
+                  {formatMoney(t2.amount, currency)}
                 </span>
                 <button
-                  onClick={() => setEditing(t)}
+                  onClick={() => setEditing(t2)}
                   className="text-xs text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
                 >
-                  Editar
+                  {t("common.edit")}
                 </button>
                 <button
-                  onClick={() => deleteMutation.mutate(t.id)}
+                  onClick={() => deleteMutation.mutate(t2.id)}
                   className="text-xs text-slate-400 transition hover:text-red-600"
                 >
-                  Eliminar
+                  {t("common.delete")}
                 </button>
               </div>
             </li>
           ))}
           {transactions?.length === 0 && (
-            <li className="py-6 text-center text-sm text-slate-400">No hay movimientos todavía.</li>
+            <li className="py-6 text-center text-sm text-slate-400">{t("dashboard.noTransactionsYet")}</li>
           )}
         </ul>
       </Card>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nuevo movimiento">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={t("transactionForm.newTitle")}>
         <TransactionForm
           categories={categories ?? []}
           onSubmit={async (values) => {
@@ -170,12 +177,12 @@ export function DashboardPage() {
         />
       </Modal>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} title="Editar movimiento">
+      <Modal open={!!editing} onClose={() => setEditing(null)} title={t("transactionForm.editTitle")}>
         {editing && (
           <TransactionForm
             categories={categories ?? []}
             initial={editing}
-            submitLabel="Guardar cambios"
+            submitLabel={t("common.saveChanges")}
             onSubmit={async (values) => {
               await updateMutation.mutateAsync(values);
             }}
@@ -189,6 +196,7 @@ export function DashboardPage() {
 
 function SavingsSection({ savingsGoal, currency }: { savingsGoal: number; currency: Currency }) {
   const { updateSettings } = useAuth();
+  const { t } = useLanguage();
   const [value, setValue] = useState(String(savingsGoal));
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -203,7 +211,7 @@ function SavingsSection({ savingsGoal, currency }: { savingsGoal: number; curren
     const trimmed = value.trim();
     const parsed = trimmed === "" ? 0 : Number(trimmed);
     if (Number.isNaN(parsed) || parsed < 0) {
-      setError("Ingresa un monto válido");
+      setError(t("validation.invalidAmount"));
       return;
     }
     setError(null);
@@ -213,7 +221,7 @@ function SavingsSection({ savingsGoal, currency }: { savingsGoal: number; curren
       await updateSettings({ savingsGoal: parsed });
       setSuccess(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar el ahorro");
+      setError(err instanceof ApiError ? err.message : t("savings.saveError"));
       setValue(String(savingsGoal));
     } finally {
       setSaving(false);
@@ -224,14 +232,12 @@ function SavingsSection({ savingsGoal, currency }: { savingsGoal: number; curren
     <Card>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Ahorro</h2>
-          <p className="text-xs text-slate-400">
-            Aparta un monto de tu ingreso cada periodo. Reduce cuánto puedes asignar a tus categorías de gasto.
-          </p>
+          <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">{t("savings.title")}</h2>
+          <p className="text-xs text-slate-400">{t("savings.description")}</p>
         </div>
         <form onSubmit={handleSubmit} className="flex items-end gap-2">
           <div className="w-32">
-            <Label htmlFor="savingsGoal">Meta de ahorro</Label>
+            <Label htmlFor="savingsGoal">{t("savings.goalLabel")}</Label>
             <Input
               id="savingsGoal"
               type="number"
@@ -246,14 +252,14 @@ function SavingsSection({ savingsGoal, currency }: { savingsGoal: number; curren
             />
           </div>
           <Button type="submit" variant="secondary" disabled={saving}>
-            {saving ? "Guardando..." : "Guardar"}
+            {saving ? t("common.saving") : t("common.save")}
           </Button>
         </form>
       </div>
       {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
       {success && (
         <p className="mt-2 text-xs text-emerald-600">
-          Guardado: ahorras {formatMoney(Number(value) || 0, currency)} por periodo.
+          {t("savings.savedMessage", { amount: formatMoney(Number(value) || 0, currency) })}
         </p>
       )}
     </Card>

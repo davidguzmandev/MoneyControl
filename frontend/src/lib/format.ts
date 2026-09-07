@@ -26,9 +26,14 @@ export function formatMoney(amount: number, currency: Currency = "USD"): string 
   return getFormatter(currency).format(amount);
 }
 
-export function formatDate(isoDate: string): string {
+const DATE_LOCALE: Record<"es" | "en", string> = {
+  es: "es-MX",
+  en: "en-US",
+};
+
+export function formatDate(isoDate: string, language: "es" | "en" = "es"): string {
   const [year, month, day] = isoDate.split("-").map(Number);
-  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("es-MX", {
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString(DATE_LOCALE[language], {
     day: "2-digit",
     month: "short",
     year: "numeric",

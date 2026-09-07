@@ -10,6 +10,7 @@ export interface UserRow {
   low_balance_alert: string | null;
   balance_since: string | null;
   theme: "light" | "dark" | "system";
+  language: "es" | "en";
   created_at: Date;
 }
 
@@ -45,6 +46,7 @@ export function publicUser(row: UserRow) {
     lowBalanceAlert: row.low_balance_alert === null ? null : Number(row.low_balance_alert),
     balanceSince: row.balance_since,
     theme: row.theme,
+    language: row.language,
   };
 }
 

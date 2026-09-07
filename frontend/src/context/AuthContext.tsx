@@ -14,7 +14,14 @@ interface AuthContextValue {
     data: Partial<
       Pick<
         User,
-        "name" | "cycleStartDay" | "currency" | "savingsGoal" | "lowBalanceAlert" | "balanceSince" | "theme"
+        | "name"
+        | "cycleStartDay"
+        | "currency"
+        | "savingsGoal"
+        | "lowBalanceAlert"
+        | "balanceSince"
+        | "theme"
+        | "language"
       >
     >
   ) => Promise<void>;
@@ -64,7 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       data: Partial<
         Pick<
           User,
-          "name" | "cycleStartDay" | "currency" | "savingsGoal" | "lowBalanceAlert" | "balanceSince" | "theme"
+          | "name"
+        | "cycleStartDay"
+        | "currency"
+        | "savingsGoal"
+        | "lowBalanceAlert"
+        | "balanceSince"
+        | "theme"
+        | "language"
         >
       >
     ) => api.patch<{ user: User }>("/auth/me", data),

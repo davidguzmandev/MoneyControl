@@ -1,6 +1,7 @@
 export type TransactionType = "INCOME" | "EXPENSE";
 export type Currency = "USD" | "COP" | "MXN" | "CAD";
 export type Theme = "light" | "dark" | "system";
+export type Language = "es" | "en";
 
 export interface User {
   id: string;
@@ -12,6 +13,7 @@ export interface User {
   lowBalanceAlert: number | null;
   balanceSince: string | null;
   theme: Theme;
+  language: Language;
 }
 
 export interface Category {

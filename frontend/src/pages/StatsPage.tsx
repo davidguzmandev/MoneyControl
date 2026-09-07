@@ -21,6 +21,7 @@ import { Modal } from "../components/Modal";
 import { TransactionForm } from "../components/TransactionForm";
 import type { TransactionFormValues } from "../components/TransactionForm";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 
 type RangeOption = "period" | "30" | "90" | "all";
 
@@ -81,6 +82,7 @@ function CategoryPieCard({
 
 export function StatsPage() {
   const { user } = useAuth();
+  const { t, language } = useLanguage();
   const currency = user?.currency ?? "USD";
   const queryClient = useQueryClient();
   const [range, setRange] = useState<RangeOption>("period");
@@ -186,23 +188,23 @@ export function StatsPage() {
     return transactions.reduce((sum, t) => sum + (t.type === "INCOME" ? t.amount : -t.amount), 0);
   }, [transactions]);
 
+  const rangeOptions: { key: RangeOption; label: string }[] = [
+    { key: "period", label: t("stats.rangePeriod") },
+    { key: "30", label: t("stats.range30") },
+    { key: "90", label: t("stats.range90") },
+    { key: "all", label: t("stats.rangeAll") },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold tracking-tight">Estadísticas y movimientos</h1>
-          <p className="text-sm text-slate-500">Analiza tus ingresos y gastos, y consulta tus movimientos.</p>
+          <h1 className="text-xl font-semibold tracking-tight">{t("stats.title")}</h1>
+          <p className="text-sm text-slate-500">{t("stats.subtitle")}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex gap-1 rounded-full bg-slate-100 p-1 dark:bg-slate-800">
-            {(
-              [
-                { key: "period", label: "Periodo actual" },
-                { key: "30", label: "30 días" },
-                { key: "90", label: "90 días" },
-                { key: "all", label: "Todo" },
-              ] as { key: RangeOption; label: string }[]
-            ).map((opt) => (
+            {rangeOptions.map((opt) => (
               <button
                 key={opt.key}
                 onClick={() => setRange(opt.key)}
@@ -216,52 +218,52 @@ export function StatsPage() {
               </button>
             ))}
           </div>
-          <Button onClick={() => setModalOpen(true)}>+ Nuevo movimiento</Button>
+          <Button onClick={() => setModalOpen(true)}>{t("dashboard.newTransaction")}</Button>
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <CategoryPieCard
-          title="Ingresos por categoría"
+          title={t("stats.incomeByCategory")}
           data={incomeByCategory}
-          emptyLabel="No hay ingresos en este rango."
+          emptyLabel={t("stats.noIncomeInRange")}
           currency={currency}
         />
         <CategoryPieCard
-          title="Gastos por categoría"
+          title={t("stats.expenseByCategory")}
           data={expenseByCategory}
-          emptyLabel="No hay gastos en este rango."
+          emptyLabel={t("stats.noExpenseInRange")}
           currency={currency}
         />
       </div>
 
       <Card>
-        <h2 className="mb-3 text-sm font-semibold text-slate-500">Ingresos vs. gastos por día</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-500">{t("stats.incomeVsExpense")}</h2>
         {timeline && timeline.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
             <BarChart data={timeline}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-800" />
-              <XAxis dataKey="date" tickFormatter={(d) => formatDate(d)} fontSize={11} />
+              <XAxis dataKey="date" tickFormatter={(d) => formatDate(d, language)} fontSize={11} />
               <YAxis fontSize={11} />
               <Tooltip
-                labelFormatter={(d) => formatDate(String(d))}
+                labelFormatter={(d) => formatDate(String(d), language)}
                 formatter={(v) => formatMoney(Number(v), currency)}
               />
               <Legend />
-              <Bar dataKey="income" name="Ingresos" fill="#16a34a" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="expense" name="Gastos" fill="#dc2626" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="income" name={t("common.incomePlural")} fill="#16a34a" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="expense" name={t("categories.expenses")} fill="#dc2626" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <p className="py-10 text-center text-sm text-slate-400">No hay movimientos en este rango.</p>
+          <p className="py-10 text-center text-sm text-slate-400">{t("stats.noTransactionsInRange")}</p>
         )}
       </Card>
 
       <div>
-        <h2 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">Movimientos</h2>
+        <h2 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">{t("stats.transactionsTitle")}</h2>
         <Card className="mb-4 flex flex-wrap items-center gap-3">
           <Select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="w-auto">
-            <option value="">Todas las categorías</option>
+            <option value="">{t("stats.allCategories")}</option>
             {categories?.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -269,12 +271,12 @@ export function StatsPage() {
             ))}
           </Select>
           <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="w-auto">
-            <option value="">Todos los tipos</option>
-            <option value="INCOME">Ingresos</option>
-            <option value="EXPENSE">Gastos</option>
+            <option value="">{t("stats.allTypes")}</option>
+            <option value="INCOME">{t("common.incomePlural")}</option>
+            <option value="EXPENSE">{t("categories.expenses")}</option>
           </Select>
           <span className="ml-auto text-sm text-slate-500">
-            Balance del filtro:{" "}
+            {t("stats.filterBalance")}{" "}
             <span className={filteredTotal >= 0 ? "font-semibold text-income" : "font-semibold text-expense"}>
               {formatMoney(filteredTotal, currency)}
             </span>
@@ -283,51 +285,51 @@ export function StatsPage() {
 
         <Card>
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-            {transactions?.map((t) => (
-              <li key={t.id} className="flex items-center justify-between gap-3 py-3">
+            {transactions?.map((tx) => (
+              <li key={tx.id} className="flex items-center justify-between gap-3 py-3">
                 <div className="flex items-center gap-3">
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: t.category.color }}
+                    style={{ backgroundColor: tx.category.color }}
                   />
                   <div>
-                    <p className="text-sm font-medium">{t.category.name}</p>
+                    <p className="text-sm font-medium">{tx.category.name}</p>
                     <p className="text-xs text-slate-400">
-                      {formatDate(t.date.slice(0, 10))}
-                      {t.description ? ` · ${t.description}` : ""}
+                      {formatDate(tx.date.slice(0, 10), language)}
+                      {tx.description ? ` · ${tx.description}` : ""}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
                   <span
-                    className={`text-sm font-semibold ${t.type === "INCOME" ? "text-income" : "text-expense"}`}
+                    className={`text-sm font-semibold ${tx.type === "INCOME" ? "text-income" : "text-expense"}`}
                   >
-                    {t.type === "INCOME" ? "+" : "-"}
-                    {formatMoney(t.amount, currency)}
+                    {tx.type === "INCOME" ? "+" : "-"}
+                    {formatMoney(tx.amount, currency)}
                   </span>
                   <button
-                    onClick={() => setEditing(t)}
+                    onClick={() => setEditing(tx)}
                     className="text-xs text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
                   >
-                    Editar
+                    {t("common.edit")}
                   </button>
                   <button
-                    onClick={() => deleteMutation.mutate(t.id)}
+                    onClick={() => deleteMutation.mutate(tx.id)}
                     className="text-xs text-slate-400 transition hover:text-red-600"
                   >
-                    Eliminar
+                    {t("common.delete")}
                   </button>
                 </div>
               </li>
             ))}
             {transactions?.length === 0 && (
-              <li className="py-6 text-center text-sm text-slate-400">No hay movimientos en este rango.</li>
+              <li className="py-6 text-center text-sm text-slate-400">{t("stats.noTransactionsInRange")}</li>
             )}
           </ul>
         </Card>
       </div>
 
-      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title="Nuevo movimiento">
+      <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={t("transactionForm.newTitle")}>
         <TransactionForm
           categories={categories ?? []}
           onSubmit={async (values) => {
@@ -337,12 +339,12 @@ export function StatsPage() {
         />
       </Modal>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} title="Editar movimiento">
+      <Modal open={!!editing} onClose={() => setEditing(null)} title={t("transactionForm.editTitle")}>
         {editing && (
           <TransactionForm
             categories={categories ?? []}
             initial={editing}
-            submitLabel="Guardar cambios"
+            submitLabel={t("common.saveChanges")}
             onSubmit={async (values) => {
               await updateMutation.mutateAsync(values);
             }}

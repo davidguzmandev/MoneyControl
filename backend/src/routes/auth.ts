@@ -150,6 +150,7 @@ const settingsSchema = z.object({
     .nullable()
     .optional(),
   theme: z.enum(["light", "dark", "system"]).optional(),
+  language: z.enum(["es", "en"]).optional(),
 });
 
 router.patch("/me", requireAuth, async (req, res) => {
@@ -202,6 +203,10 @@ router.patch("/me", requireAuth, async (req, res) => {
   if (parsed.data.theme !== undefined) {
     fields.push(`theme = $${idx++}`);
     values.push(parsed.data.theme);
+  }
+  if (parsed.data.language !== undefined) {
+    fields.push(`language = $${idx++}`);
+    values.push(parsed.data.language);
   }
 
   if (fields.length === 0) {

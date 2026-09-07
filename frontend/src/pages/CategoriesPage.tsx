@@ -7,6 +7,7 @@ import { formatMoney, todayISODate } from "../lib/format";
 import { Button, Card, ErrorText, Input, Label } from "../components/ui";
 import { Modal } from "../components/Modal";
 import { useAuth } from "../context/AuthContext";
+import { useLanguage } from "../context/LanguageContext";
 
 const COLOR_PALETTE = [
   "#22c55e",
@@ -23,6 +24,7 @@ const COLOR_PALETTE = [
 
 export function CategoriesPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const currency = user?.currency ?? "USD";
   const queryClient = useQueryClient();
   const { data } = useQuery({
@@ -64,7 +66,7 @@ export function CategoriesPage() {
       queryClient.invalidateQueries({ queryKey: ["budget"] });
       setName("");
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "Error al crear la categoría"),
+    onError: (err) => setError(err instanceof ApiError ? err.message : t("categories.createError")),
   });
 
   const deleteMutation = useMutation({
@@ -73,7 +75,7 @@ export function CategoriesPage() {
       queryClient.invalidateQueries({ queryKey: ["categories"] });
       queryClient.invalidateQueries({ queryKey: ["budget"] });
     },
-    onError: (err) => setError(err instanceof ApiError ? err.message : "No se pudo borrar la categoría"),
+    onError: (err) => setError(err instanceof ApiError ? err.message : t("categories.deleteError")),
   });
 
   const budgetMutation = useMutation({
@@ -110,8 +112,8 @@ export function CategoriesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight">Categorías</h1>
-        <p className="text-sm text-slate-500">Organiza tus movimientos por categoría y define presupuestos.</p>
+        <h1 className="text-xl font-semibold tracking-tight">{t("nav.categories")}</h1>
+        <p className="text-sm text-slate-500">{t("categories.subtitle")}</p>
       </div>
 
       <Card>
@@ -126,7 +128,7 @@ export function CategoriesPage() {
                   : "border-slate-200 text-slate-500 dark:border-slate-700"
               }`}
             >
-              Categoría de gasto
+              {t("categories.expenseType")}
             </button>
             <button
               type="button"
@@ -137,21 +139,21 @@ export function CategoriesPage() {
                   : "border-slate-200 text-slate-500 dark:border-slate-700"
               }`}
             >
-              Categoría de ingreso
+              {t("categories.incomeType")}
             </button>
           </div>
           <div className="flex flex-wrap items-end gap-3">
             <div className="min-w-[180px] flex-1">
-              <Label htmlFor="categoryName">Nueva categoría</Label>
+              <Label htmlFor="categoryName">{t("categories.newCategory")}</Label>
               <Input
                 id="categoryName"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Ej. Mascotas"
+                placeholder={t("categories.namePlaceholder")}
               />
             </div>
             <div>
-              <Label>Color</Label>
+              <Label>{t("common.color")}</Label>
               <div className="flex gap-1.5">
                 {COLOR_PALETTE.map((c) => (
                   <button
@@ -168,7 +170,7 @@ export function CategoriesPage() {
               </div>
             </div>
             <Button type="submit" disabled={createMutation.isPending}>
-              Agregar
+              {t("common.add")}
             </Button>
           </div>
         </form>
@@ -179,7 +181,7 @@ export function CategoriesPage() {
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <h2 className="mb-2 text-sm font-semibold text-emerald-600">Ingresos</h2>
+          <h2 className="mb-2 text-sm font-semibold text-emerald-600">{t("categories.incomes")}</h2>
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {incomeCategories.map((category) => (
               <li key={category.id} className="flex items-center justify-between py-3">
@@ -192,7 +194,7 @@ export function CategoriesPage() {
                     onClick={() => setEditing(category)}
                     className="text-xs text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
                   >
-                    Editar
+                    {t("common.edit")}
                   </button>
                   <button
                     onClick={() => {
@@ -201,19 +203,19 @@ export function CategoriesPage() {
                     }}
                     className="text-xs text-slate-400 transition hover:text-red-600"
                   >
-                    Eliminar
+                    {t("common.delete")}
                   </button>
                 </div>
               </li>
             ))}
             {incomeCategories.length === 0 && (
-              <li className="py-6 text-center text-sm text-slate-400">No tienes categorías de ingreso todavía.</li>
+              <li className="py-6 text-center text-sm text-slate-400">{t("categories.noIncomeCategories")}</li>
             )}
           </ul>
         </Card>
 
         <Card>
-          <h2 className="mb-2 text-sm font-semibold text-red-600">Gastos</h2>
+          <h2 className="mb-2 text-sm font-semibold text-red-600">{t("categories.expenses")}</h2>
           <ul className="divide-y divide-slate-100 dark:divide-slate-800">
             {expenseCategories.map((category) => (
               <ExpenseCategoryRow
@@ -232,13 +234,13 @@ export function CategoriesPage() {
               />
             ))}
             {expenseCategories.length === 0 && (
-              <li className="py-6 text-center text-sm text-slate-400">No tienes categorías de gasto todavía.</li>
+              <li className="py-6 text-center text-sm text-slate-400">{t("categories.noExpenseCategories")}</li>
             )}
           </ul>
         </Card>
       </div>
 
-      <Modal open={!!editing} onClose={() => setEditing(null)} title="Editar categoría">
+      <Modal open={!!editing} onClose={() => setEditing(null)} title={t("categories.editTitle")}>
         {editing && (
           <CategoryEditForm
             category={editing}
@@ -260,6 +262,7 @@ function CategoryEditForm({
   onSubmit: (vars: { id: string; name: string; color: string }) => Promise<unknown>;
   onCancel: () => void;
 }) {
+  const { t } = useLanguage();
   const [name, setName] = useState(category.name);
   const [color, setColor] = useState(category.color);
   const [error, setError] = useState<string | null>(null);
@@ -273,7 +276,7 @@ function CategoryEditForm({
     try {
       await onSubmit({ id: category.id, name: name.trim(), color });
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "No se pudo guardar la categoría");
+      setError(err instanceof ApiError ? err.message : t("categories.saveError"));
     } finally {
       setLoading(false);
     }
@@ -282,11 +285,11 @@ function CategoryEditForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <Label htmlFor="editCategoryName">Nombre</Label>
+        <Label htmlFor="editCategoryName">{t("common.name")}</Label>
         <Input id="editCategoryName" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <div>
-        <Label>Color</Label>
+        <Label>{t("common.color")}</Label>
         <div className="flex flex-wrap gap-1.5">
           {COLOR_PALETTE.map((c) => (
             <button
@@ -305,10 +308,10 @@ function CategoryEditForm({
       <ErrorText>{error}</ErrorText>
       <div className="flex justify-end gap-2 pt-1">
         <Button type="button" variant="secondary" onClick={onCancel}>
-          Cancelar
+          {t("common.cancel")}
         </Button>
         <Button type="submit" disabled={loading}>
-          {loading ? "Guardando..." : "Guardar cambios"}
+          {loading ? t("common.saving") : t("common.saveChanges")}
         </Button>
       </div>
     </form>
@@ -330,6 +333,7 @@ function ExpenseCategoryRow({
   onDelete: () => void;
   onSaveBudget: (monthlyBudget: number | null) => Promise<unknown>;
 }) {
+  const { t } = useLanguage();
   const [budgetInput, setBudgetInput] = useState(category.monthlyBudget !== null ? String(category.monthlyBudget) : "");
   const [budgetError, setBudgetError] = useState<string | null>(null);
 
@@ -346,7 +350,7 @@ function ExpenseCategoryRow({
     try {
       await onSaveBudget(parsed);
     } catch (err) {
-      setBudgetError(err instanceof ApiError ? err.message : "No se pudo guardar el presupuesto");
+      setBudgetError(err instanceof ApiError ? err.message : t("categories.budgetSaveError"));
       setBudgetInput(category.monthlyBudget !== null ? String(category.monthlyBudget) : "");
     }
   }
@@ -367,20 +371,20 @@ function ExpenseCategoryRow({
             onClick={onEdit}
             className="text-xs text-slate-400 transition hover:text-slate-700 dark:hover:text-slate-200"
           >
-            Editar
+            {t("common.edit")}
           </button>
           <button onClick={onDelete} className="text-xs text-slate-400 transition hover:text-red-600">
-            Eliminar
+            {t("common.delete")}
           </button>
         </div>
       </div>
       <div className="mt-2 flex items-center gap-2 pl-6">
-        <span className="text-xs text-slate-400">Presupuesto:</span>
+        <span className="text-xs text-slate-400">{t("categories.budgetLabel")}</span>
         <Input
           type="number"
           min={0}
           step="0.01"
-          placeholder="Sin límite"
+          placeholder={t("categories.noLimit")}
           value={budgetInput}
           onChange={(e) => setBudgetInput(e.target.value)}
           onBlur={commitBudget}
