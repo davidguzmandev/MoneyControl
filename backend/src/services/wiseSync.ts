@@ -3,6 +3,7 @@ import { decrypt } from "../lib/crypto";
 import { newId } from "../lib/id";
 import { formatUTCDate } from "../lib/utcDate";
 import { getRate, getStatement } from "../lib/wiseClient";
+import { mapWiseCategory } from "../lib/wiseCategoryMap";
 
 interface WiseUserRow {
   wise_api_token_encrypted: string | null;
@@ -53,6 +54,39 @@ async function resolveIncomeCategory(userId: string): Promise<string> {
   return ensureCategory(userId, WISE_INCOME_FALLBACK_CATEGORY, "INCOME", "#0ea5e9");
 }
 
+/**
+ * Card purchases carry Wise's own merchant category (e.g. "Fast Food
+ * Restaurants", "Limousines" for rideshare rides). When that maps to one
+ * of the user's existing expense categories, the transaction lands there
+ * directly instead of the generic "Wise Gasto" bucket. Falls back to
+ * "Wise Gasto" for transfers (no category at all) or anything that
+ * doesn't map to a category the user actually has.
+ */
+async function resolveExpenseCategory(
+  userId: string,
+  wiseCategory: string | undefined,
+  cache: Map<string, string>
+): Promise<string> {
+  const mappedName = mapWiseCategory(wiseCategory);
+  const cacheKey = mappedName ?? WISE_EXPENSE_CATEGORY;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+
+  let categoryId: string | null = null;
+  if (mappedName) {
+    const existing = await pool.query<{ id: string }>(
+      "SELECT id FROM categories WHERE user_id = $1 AND name = $2 AND type = 'EXPENSE'",
+      [userId, mappedName]
+    );
+    categoryId = existing.rows[0]?.id ?? null;
+  }
+  if (!categoryId) {
+    categoryId = await ensureCategory(userId, WISE_EXPENSE_CATEGORY, "EXPENSE", "#64748b");
+  }
+  cache.set(cacheKey, categoryId);
+  return categoryId;
+}
+
 export interface WiseSyncResult {
   imported: number;
 }
@@ -62,8 +96,10 @@ export interface WiseSyncResult {
  * transactions, converted from the Wise balance's currency into the user's
  * configured currency. Credits land in the user's "Salario" category so
  * they feed the budget the same way any other income does; debits land in
- * a dedicated "Wise Gasto" category the user re-files from there. Safe to
- * call repeatedly: duplicates are skipped via the unique
+ * whichever of the user's expense categories matches Wise's merchant
+ * category (see resolveExpenseCategory), falling back to a dedicated
+ * "Wise Gasto" category the user re-files from there. Safe to call
+ * repeatedly: duplicates are skipped via the unique
  * (user_id, external_source, external_id) index.
  */
 export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
@@ -104,7 +140,7 @@ export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
   );
 
   let incomeCategoryId: string | null = null;
-  let expenseCategoryId: string | null = null;
+  const expenseCategoryCache = new Map<string, string>();
   let imported = 0;
 
   for (const tx of statement.transactions) {
@@ -113,13 +149,14 @@ export async function syncWiseForUser(userId: string): Promise<WiseSyncResult> {
     const amount = conversionRate ? rawAmount * conversionRate : rawAmount;
 
     const type: "INCOME" | "EXPENSE" = tx.type === "CREDIT" ? "INCOME" : "EXPENSE";
-    if (type === "INCOME" && !incomeCategoryId) {
-      incomeCategoryId = await resolveIncomeCategory(userId);
+    let categoryId: string;
+    if (type === "INCOME") {
+      if (!incomeCategoryId) incomeCategoryId = await resolveIncomeCategory(userId);
+      categoryId = incomeCategoryId;
+    } else {
+      const wiseCategory = tx.details?.category ?? tx.details?.merchant?.category;
+      categoryId = await resolveExpenseCategory(userId, wiseCategory, expenseCategoryCache);
     }
-    if (type === "EXPENSE" && !expenseCategoryId) {
-      expenseCategoryId = await ensureCategory(userId, WISE_EXPENSE_CATEGORY, "EXPENSE", "#64748b");
-    }
-    const categoryId = type === "INCOME" ? incomeCategoryId! : expenseCategoryId!;
     const description = tx.details?.description ?? tx.details?.paymentReference ?? null;
 
     const result = await pool.query(

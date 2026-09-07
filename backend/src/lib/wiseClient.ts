@@ -29,7 +29,13 @@ export interface WiseStatementTransaction {
   type: "CREDIT" | "DEBIT";
   date: string;
   amount: { value: number; currency: string };
-  details: { description?: string; paymentReference?: string; type?: string };
+  details: {
+    description?: string;
+    paymentReference?: string;
+    type?: string;
+    category?: string;
+    merchant?: { category?: string };
+  };
   referenceNumber: string;
 }
 
