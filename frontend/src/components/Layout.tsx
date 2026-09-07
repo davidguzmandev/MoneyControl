@@ -1,11 +1,12 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { LayoutGrid, ListTree, LineChart, Settings as SettingsIcon } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
 const navItems = [
-  { to: "/app", label: "Resumen", end: true },
-  { to: "/app/categories", label: "Categorías" },
-  { to: "/app/stats", label: "Estadísticas y movimientos" },
-  { to: "/app/settings", label: "Configuración" },
+  { to: "/app", label: "Resumen", end: true, icon: LayoutGrid },
+  { to: "/app/categories", label: "Categorías", end: false, icon: ListTree },
+  { to: "/app/stats", label: "Estadísticas", end: false, icon: LineChart },
+  { to: "/app/settings", label: "Configuración", end: false, icon: SettingsIcon },
 ];
 
 export function Layout() {
@@ -28,7 +29,7 @@ export function Layout() {
             </button>
           </div>
         </div>
-        <nav className="mx-auto flex max-w-5xl gap-1 overflow-x-auto px-4 pb-2 sm:px-6">
+        <nav className="mx-auto hidden max-w-5xl gap-1 overflow-x-auto px-4 pb-2 sm:flex sm:px-6">
           {navItems.map((item) => (
             <NavLink
               key={item.to}
@@ -47,9 +48,38 @@ export function Layout() {
           ))}
         </nav>
       </header>
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
+
+      <main className="mx-auto max-w-5xl px-4 py-6 pb-24 sm:px-6 sm:pb-6">
         <Outlet />
       </main>
+
+      <nav
+        className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 backdrop-blur sm:hidden dark:border-slate-800 dark:bg-slate-900/95"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="mx-auto flex max-w-5xl items-stretch justify-around">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  `flex flex-1 flex-col items-center gap-1 py-2 text-xs font-medium transition ${
+                    isActive
+                      ? "text-slate-900 dark:text-slate-100"
+                      : "text-slate-400 dark:text-slate-500"
+                  }`
+                }
+              >
+                <Icon size={22} strokeWidth={2} />
+                <span>{item.label}</span>
+              </NavLink>
+            );
+          })}
+        </div>
+      </nav>
     </div>
   );
 }
