@@ -34,7 +34,7 @@ export interface WiseStatementTransaction {
     paymentReference?: string;
     type?: string;
     category?: string;
-    merchant?: { category?: string };
+    merchant?: { name?: string; category?: string };
   };
   referenceNumber: string;
 }

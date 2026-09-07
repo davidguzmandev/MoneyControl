@@ -7,7 +7,7 @@
  * "Wise Gasto" bucket. Transfers and anything unrecognized return null and
  * fall back to "Wise Gasto".
  */
-const RULES: { pattern: RegExp; category: string }[] = [
+const CATEGORY_RULES: { pattern: RegExp; category: string }[] = [
   { pattern: /restaurant|fast food|food store|grocery|supermarket|meat|convenien/i, category: "Comida" },
   { pattern: /limousine|taxi|automotive|airline|parking|car wash|fuel|gas station|transport/i, category: "Transporte" },
   { pattern: /drug store|pharmac|health practitioner|medical|dental|hospital/i, category: "Salud" },
@@ -17,8 +17,25 @@ const RULES: { pattern: RegExp; category: string }[] = [
   { pattern: /real estate|rent|housing/i, category: "Renta" },
 ];
 
-export function mapWiseCategory(wiseCategory: string | undefined | null): string | null {
-  if (!wiseCategory) return null;
-  const match = RULES.find((rule) => rule.pattern.test(wiseCategory));
-  return match?.category ?? null;
+// Some merchants get filed by Wise under a generic MCC bucket (e.g. a
+// specific Uber sub-merchant landing under "Business Services not
+// elsewhere" instead of "Limousines"). When the category itself doesn't
+// match, the merchant/description name is checked as a second signal.
+const MERCHANT_RULES: { pattern: RegExp; category: string }[] = [
+  { pattern: /uber|lyft|didi|cabify|taxi/i, category: "Transporte" },
+];
+
+export function mapWiseCategory(
+  wiseCategory: string | undefined | null,
+  merchantName?: string | null
+): string | null {
+  if (wiseCategory) {
+    const match = CATEGORY_RULES.find((rule) => rule.pattern.test(wiseCategory));
+    if (match) return match.category;
+  }
+  if (merchantName) {
+    const match = MERCHANT_RULES.find((rule) => rule.pattern.test(merchantName));
+    if (match) return match.category;
+  }
+  return null;
 }

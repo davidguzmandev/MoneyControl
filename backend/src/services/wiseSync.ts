@@ -65,9 +65,10 @@ async function resolveIncomeCategory(userId: string): Promise<string> {
 async function resolveExpenseCategory(
   userId: string,
   wiseCategory: string | undefined,
+  merchantName: string | undefined,
   cache: Map<string, string>
 ): Promise<string> {
-  const mappedName = mapWiseCategory(wiseCategory);
+  const mappedName = mapWiseCategory(wiseCategory, merchantName);
   const cacheKey = mappedName ?? WISE_EXPENSE_CATEGORY;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
@@ -168,7 +169,8 @@ export async function syncWiseForUser(
       categoryId = incomeCategoryId;
     } else {
       const wiseCategory = tx.details?.category ?? tx.details?.merchant?.category;
-      categoryId = await resolveExpenseCategory(userId, wiseCategory, expenseCategoryCache);
+      const merchantName = tx.details?.merchant?.name ?? tx.details?.description;
+      categoryId = await resolveExpenseCategory(userId, wiseCategory, merchantName, expenseCategoryCache);
     }
     const description = tx.details?.description ?? tx.details?.paymentReference ?? null;
 
