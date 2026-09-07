@@ -18,8 +18,6 @@ export function SettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [rateNotice, setRateNotice] = useState<{ from: string; to: string; rate: number } | null>(null);
-  const [checkingRate, setCheckingRate] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -29,7 +27,8 @@ export function SettingsPage() {
     setCurrency(user.currency);
   }, [user]);
 
-  async function saveSettings() {
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
     setError(null);
     setSuccess(false);
     setLoading(true);
@@ -40,35 +39,11 @@ export function SettingsPage() {
         currency,
       });
       setSuccess(true);
-      setRateNotice(null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : t("settings.saveError"));
     } finally {
       setLoading(false);
     }
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setSuccess(false);
-
-    if (user && currency !== user.currency) {
-      setCheckingRate(true);
-      try {
-        const preview = await api.get<{ from: string; to: string; rate: number }>(
-          `/auth/currency-rate?to=${currency}`
-        );
-        setRateNotice(preview);
-      } catch (err) {
-        setError(err instanceof ApiError ? err.message : t("settings.conversionCalcError"));
-      } finally {
-        setCheckingRate(false);
-      }
-      return;
-    }
-
-    await saveSettings();
   }
 
   const CURRENCIES: { value: Currency; label: string }[] = [
@@ -141,31 +116,11 @@ export function SettingsPage() {
             {t("settings.budgetExplanationPost")}
           </div>
 
-          {rateNotice && (
-            <div className="space-y-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-              <p>
-                {t("settings.currencyChangeWarning", {
-                  from: rateNotice.from,
-                  to: rateNotice.to,
-                  rate: rateNotice.rate.toFixed(4),
-                })}
-              </p>
-              <div className="flex gap-2">
-                <Button type="button" variant="secondary" onClick={() => setRateNotice(null)}>
-                  {t("common.cancel")}
-                </Button>
-                <Button type="button" disabled={loading} onClick={() => saveSettings()}>
-                  {loading ? t("settings.converting") : t("settings.confirmConversion")}
-                </Button>
-              </div>
-            </div>
-          )}
-
           <ErrorText>{error}</ErrorText>
           {success && <p className="text-sm text-emerald-600">{t("common.savedSuccessfully")}</p>}
 
-          <Button type="submit" disabled={loading || checkingRate || !!rateNotice}>
-            {checkingRate ? t("settings.calculating") : loading ? t("common.saving") : t("common.saveChanges")}
+          <Button type="submit" disabled={loading}>
+            {loading ? t("common.saving") : t("common.saveChanges")}
           </Button>
         </form>
       </Card>
