@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS users (
   wise_last_synced_at TIMESTAMPTZ,
   low_balance_alert NUMERIC(12, 2),
   balance_since DATE,
+  theme TEXT NOT NULL DEFAULT 'system' CHECK (theme IN ('light', 'dark', 'system')),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -28,6 +29,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS wise_currency TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS wise_last_synced_at TIMESTAMPTZ;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS low_balance_alert NUMERIC(12, 2);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS balance_since DATE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS theme TEXT NOT NULL DEFAULT 'system' CHECK (theme IN ('light', 'dark', 'system'));
 
 CREATE TABLE IF NOT EXISTS categories (
   id UUID PRIMARY KEY,

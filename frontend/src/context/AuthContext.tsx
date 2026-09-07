@@ -12,9 +12,14 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   updateSettings: (
     data: Partial<
-      Pick<User, "name" | "cycleStartDay" | "currency" | "savingsGoal" | "lowBalanceAlert" | "balanceSince">
+      Pick<
+        User,
+        "name" | "cycleStartDay" | "currency" | "savingsGoal" | "lowBalanceAlert" | "balanceSince" | "theme"
+      >
     >
   ) => Promise<void>;
+  changePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  deleteAccount: (password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -57,7 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const settingsMutation = useMutation({
     mutationFn: (
       data: Partial<
-        Pick<User, "name" | "cycleStartDay" | "currency" | "savingsGoal" | "lowBalanceAlert" | "balanceSince">
+        Pick<
+          User,
+          "name" | "cycleStartDay" | "currency" | "savingsGoal" | "lowBalanceAlert" | "balanceSince" | "theme"
+        >
       >
     ) => api.patch<{ user: User }>("/auth/me", data),
     onSuccess: ({ user }) => {
@@ -83,6 +91,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     updateSettings: async (data) => {
       await settingsMutation.mutateAsync(data);
+    },
+    changePassword: async (currentPassword, newPassword) => {
+      await api.post<void>("/auth/change-password", { currentPassword, newPassword });
+    },
+    deleteAccount: async (password) => {
+      await api.post<void>("/auth/delete-account", { password });
+      queryClient.setQueryData(["me"], null);
     },
   };
 

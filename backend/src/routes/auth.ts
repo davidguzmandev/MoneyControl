@@ -149,6 +149,7 @@ const settingsSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .nullable()
     .optional(),
+  theme: z.enum(["light", "dark", "system"]).optional(),
 });
 
 router.patch("/me", requireAuth, async (req, res) => {
@@ -198,6 +199,10 @@ router.patch("/me", requireAuth, async (req, res) => {
     fields.push(`balance_since = $${idx++}`);
     values.push(parsed.data.balanceSince);
   }
+  if (parsed.data.theme !== undefined) {
+    fields.push(`theme = $${idx++}`);
+    values.push(parsed.data.theme);
+  }
 
   if (fields.length === 0) {
     const current = await pool.query<UserRow>("SELECT * FROM users WHERE id = $1", [req.userId]);
@@ -212,6 +217,53 @@ router.patch("/me", requireAuth, async (req, res) => {
   );
 
   res.json({ user: publicUser(result.rows[0]) });
+});
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8, "La contraseña debe tener al menos 8 caracteres"),
+});
+
+router.post("/change-password", requireAuth, async (req, res) => {
+  const parsed = changePasswordSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" });
+    return;
+  }
+
+  const result = await pool.query<UserRow>("SELECT * FROM users WHERE id = $1", [req.userId]);
+  const userRow = result.rows[0];
+  if (!userRow || !(await verifyPassword(parsed.data.currentPassword, userRow.password_hash))) {
+    res.status(401).json({ error: "La contraseña actual no es correcta" });
+    return;
+  }
+
+  const newHash = await hashPassword(parsed.data.newPassword);
+  await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [newHash, req.userId]);
+  res.status(204).send();
+});
+
+const deleteAccountSchema = z.object({
+  password: z.string().min(1),
+});
+
+router.post("/delete-account", requireAuth, async (req, res) => {
+  const parsed = deleteAccountSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: "Datos inválidos" });
+    return;
+  }
+
+  const result = await pool.query<UserRow>("SELECT * FROM users WHERE id = $1", [req.userId]);
+  const userRow = result.rows[0];
+  if (!userRow || !(await verifyPassword(parsed.data.password, userRow.password_hash))) {
+    res.status(401).json({ error: "La contraseña no es correcta" });
+    return;
+  }
+
+  await pool.query("DELETE FROM users WHERE id = $1", [req.userId]);
+  res.clearCookie(config.cookieName, { path: "/" });
+  res.status(204).send();
 });
 
 export default router;

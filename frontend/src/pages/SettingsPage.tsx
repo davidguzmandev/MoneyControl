@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { api, ApiError } from "../lib/api";
-import type { Currency } from "../types";
+import type { Currency, Theme } from "../types";
 import { Button, Card, ErrorText, Input, Label, Select } from "../components/ui";
 
 const PRESETS = [
@@ -177,12 +178,199 @@ export function SettingsPage() {
         </form>
       </Card>
 
+      <ThemeCard />
+
       <LowBalanceAlertCard />
 
       <BalanceSinceCard />
 
       <WiseIntegrationCard />
+
+      <ChangePasswordCard />
+
+      <DeleteAccountCard />
     </div>
+  );
+}
+
+const THEME_OPTIONS: { value: Theme; label: string }[] = [
+  { value: "system", label: "Igual que mi dispositivo" },
+  { value: "light", label: "Claro" },
+  { value: "dark", label: "Oscuro" },
+];
+
+function ThemeCard() {
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Apariencia</h2>
+      <p className="mt-1 text-xs text-slate-400">Elige cómo se ve Money Control en este y otros dispositivos.</p>
+      <div className="mt-4 flex flex-wrap gap-2">
+        {THEME_OPTIONS.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setTheme(opt.value)}
+            className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+              theme === opt.value
+                ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+function ChangePasswordCard() {
+  const { changePassword } = useAuth();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+    if (newPassword.length < 8) {
+      setError("La nueva contraseña debe tener al menos 8 caracteres");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("Las contraseñas nuevas no coinciden");
+      return;
+    }
+    setSaving(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      setSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo cambiar la contraseña");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold text-slate-700 dark:text-slate-200">Contraseña</h2>
+      <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <div>
+          <Label htmlFor="currentPassword">Contraseña actual</Label>
+          <Input
+            id="currentPassword"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="newPassword">Nueva contraseña</Label>
+          <Input
+            id="newPassword"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+        </div>
+        <div>
+          <Label htmlFor="confirmPassword">Confirmar nueva contraseña</Label>
+          <Input
+            id="confirmPassword"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+        </div>
+        <ErrorText>{error}</ErrorText>
+        {success && <p className="text-sm text-emerald-600">Contraseña actualizada correctamente.</p>}
+        <Button type="submit" disabled={saving}>
+          {saving ? "Guardando..." : "Cambiar contraseña"}
+        </Button>
+      </form>
+    </Card>
+  );
+}
+
+function DeleteAccountCard() {
+  const { deleteAccount } = useAuth();
+  const [confirming, setConfirming] = useState(false);
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDelete(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setDeleting(true);
+    try {
+      await deleteAccount(password);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "No se pudo eliminar la cuenta");
+      setDeleting(false);
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="text-sm font-semibold text-red-600">Eliminar cuenta</h2>
+      <p className="mt-1 text-xs text-slate-400">
+        Esto borra tu cuenta y todos tus movimientos, categorías y conexiones de forma permanente. No se
+        puede deshacer.
+      </p>
+      {!confirming ? (
+        <Button
+          type="button"
+          variant="danger"
+          className="mt-4"
+          onClick={() => {
+            setConfirming(true);
+            setError(null);
+          }}
+        >
+          Eliminar mi cuenta
+        </Button>
+      ) : (
+        <form onSubmit={handleDelete} className="mt-4 space-y-3">
+          <div>
+            <Label htmlFor="deletePassword">Confirma tu contraseña para eliminar la cuenta</Label>
+            <Input
+              id="deletePassword"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+          <ErrorText>{error}</ErrorText>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => {
+                setConfirming(false);
+                setPassword("");
+                setError(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button type="submit" variant="danger" disabled={deleting || !password}>
+              {deleting ? "Eliminando..." : "Confirmar eliminación"}
+            </Button>
+          </div>
+        </form>
+      )}
+    </Card>
   );
 }
 
